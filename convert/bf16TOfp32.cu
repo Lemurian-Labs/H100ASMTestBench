@@ -3,19 +3,10 @@
 #include <cstring>
 #include <format>
 #include <hip/hip_bf16.h>
-#include <hip/hip_runtime.h>
+#include <cuda_runtime.h>
 #include <iostream>
 #include <limits>
-
-#define HIP_CHECK(cmd)                                                         \
-  do {                                                                         \
-    hipError_t error = (cmd);                                                  \
-    if (error != hipSuccess) {                                                 \
-      std::cerr << std::format("HIP error: {} at {}:{}\n",                     \
-                               hipGetErrorString(error), __FILE__, __LINE__);  \
-      exit(EXIT_FAILURE);                                                      \
-    }                                                                          \
-  } while (0)
+#include "cuda_check.hpp"
 
 // BF16 to FP32 conversion using shift (zero-extension)
 // This is the canonical method - BF16 is just FP32 with lower 16 bits zeroed
@@ -232,7 +223,7 @@ Bf16ToFp32Converter::displayAndCheckResults(const char *how) const {
 int main() {
   // Allocate converter object in managed memory
   Bf16ToFp32Converter *converter;
-  HIP_CHECK(hipMallocManaged(&converter, sizeof(Bf16ToFp32Converter)));
+  CUDA_CHECK(hipMallocManaged(&converter, sizeof(Bf16ToFp32Converter)));
 
   new (converter) Bf16ToFp32Converter();
 
@@ -243,17 +234,17 @@ int main() {
   converter->reset();
   hipLaunchKernelGGL(HIP_KERNEL_NAME(Bf16ToFp32Converter::convertKernel),
                      gridSize, blockSize, 0, 0, converter);
-  HIP_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(hipDeviceSynchronize());
   converter->displayAndCheckResults("__bfloat162float");
 
   converter->reset();
   hipLaunchKernelGGL(HIP_KERNEL_NAME(Bf16ToFp32Converter::convertKernelShift),
                      gridSize, blockSize, 0, 0, converter);
-  HIP_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(hipDeviceSynchronize());
   converter->displayAndCheckResults("bf16TOfp32Shift");
 
   // Cleanup
-  HIP_CHECK(hipFree(converter));
+  CUDA_CHECK(hipFree(converter));
 
   return 0;
 }

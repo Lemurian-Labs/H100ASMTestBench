@@ -9,16 +9,13 @@
 // A single result table is printed. For mismatch rows, a hex row and
 // an error row are printed beneath, in the same style as newer test programs.
 //
-// Compile:
-//   hipcc -O2 -std=c++20 fp32TObf16.hip -o fp32TObf16
-//
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <format>
 #include <getopt.h>
 #include <hip/hip_bf16.h>
-#include <hip/hip_runtime.h>
+#include <cuda_runtime.h>
 #include <iostream>
 #include <limits>
 
@@ -320,7 +317,7 @@ int main(int argc, char **argv) {
   }
 
   Fp32ToBf16Tester *tester;
-  HIP_CHECK(hipMallocManaged(&tester, sizeof(Fp32ToBf16Tester)));
+  CUDA_CHECK(hipMallocManaged(&tester, sizeof(Fp32ToBf16Tester)));
 
   new (tester) Fp32ToBf16Tester();
 
@@ -331,19 +328,19 @@ int main(int argc, char **argv) {
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(Fp32ToBf16Tester::testKernelRef), gridSize,
                      blockSize, 0, 0, tester);
-  HIP_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(hipDeviceSynchronize());
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(Fp32ToBf16Tester::testKernelTrunc),
                      gridSize, blockSize, 0, 0, tester);
-  HIP_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(hipDeviceSynchronize());
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(Fp32ToBf16Tester::testKernelRound),
                      gridSize, blockSize, 0, 0, tester);
-  HIP_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(hipDeviceSynchronize());
 
   tester->displayResults();
 
-  HIP_CHECK(hipFree(tester));
+  CUDA_CHECK(hipFree(tester));
   return 0;
 }
 

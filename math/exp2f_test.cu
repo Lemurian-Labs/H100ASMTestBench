@@ -1,8 +1,9 @@
 //
-// rcp_test.hip
+// exp2f_test.hip
 //
-// Tests reciprocal using v_rcp_f32 on AMD MI300 hardware,
-// comparing against 1.0f / x and optional torch reciprocal outputs.
+// Test harness for 2^x on GPU:
+//   - direct v_exp_f32 asm (CUSTOM_EXP2F)
+//   - ROCm exp2f
 //
 #include <cmath>
 #include <cstdint>
@@ -10,7 +11,7 @@
 #include <format>
 #include <fstream>
 #include <getopt.h>
-#include <hip/hip_runtime.h>
+#include <cuda_runtime.h>
 #include <iostream>
 #include <limits>
 #include <vector>
@@ -21,54 +22,118 @@
 #include "hipcheck.hpp"
 
 // clang-format off
-inline float __device__ rcp_f32_inplace(float x) {
+inline float __device__ exp2_f32_inplace(float x) {
   float result;
   __asm__ __volatile__(
-      "v_rcp_f32_e32 %0, %1 ;; 1/x\n\t"
+      "v_exp_f32_e32 %0, %1 ;; 2^x\n\t"
       : "=v"(result) // %0
       : "v"(x)       // %1
       );
   return result;
 }
+
+inline float __device__ exp2_f32_subnorm_fixup_vcc(float x) {
+  float result;
+  float thresh;
+  float sub_scale;
+  float shift;
+  float tmp;
+
+  __asm__ __volatile__(
+      "v_mov_b32_e32 %1, 0xc2fc0000             ;; thresh = -126.0f\n\t"
+      "v_mov_b32_e32 %2, 0x1f800000             ;; sub_scale = 2^-64\n\t"
+      "v_cmp_lt_f32_e32 vcc, %5, %1             ;; x < -126\n\t"
+      "s_nop 1                                  ;; vcc hazard
+      "v_cndmask_b32_e32 %0, 1.0, %2, vcc       ;; scale = (x < -126) ? 2^-64 : 1.0\n\t"
+      "v_mov_b32_e32 %3, 0x42800000             ;; 64.0f\n\t"
+      "v_cndmask_b32_e32 %3, 0, %3, vcc         ;; shift = (x < -126) ? 64.0f : 0.0f\n\t"
+      "v_add_f32_e32 %4, %5, %3                 ;; tmp = x + shift\n\t"
+      "v_exp_f32_e32 %4, %4                     ;; tmp = 2^(x+shift)\n\t"
+      "s_nop 0                                  ;; wait-state for v_exp_f32 result\n\t"
+      "v_mul_f32_e32 %0, %4, %0                 ;; result = tmp * scale\n\t"
+      : "=&v"(result),    // %0
+        "=&v"(thresh),    // %1
+        "=&v"(sub_scale), // %2
+        "=&v"(shift),     // %3
+        "=v"(tmp)         // %4 no early clobber, written only after all inputs are consumed.
+      : "v"(x)            // %5
+      : "vcc");
+
+  return result;
+}
+
+inline float __device__ exp2_f32_subnorm_fixup_stemp(float x) {
+  float result;
+  float thresh;
+  float sub_scale;
+  float shift;
+  float tmp;
+  uint64_t stemp;
+
+  __asm__ __volatile__(
+      "v_mov_b32_e32 %1, 0xc2fc0000             ;; thresh = -126.0f\n\t"
+      "v_mov_b32_e32 %2, 0x1f800000             ;; sub_scale = 2^-64\n\t"
+      "v_cmp_lt_f32 %5, %6, %1                  ;; x < -126\n\t"
+      "s_nop 1                                  ;; stemp hazard
+      "v_cndmask_b32 %0, 1.0, %2, %5            ;; scale = (x < -126) ? 2^-64 : 1.0\n\t"
+      "v_mov_b32_e32 %3, 0x42800000             ;; 64.0f\n\t"
+      "v_cndmask_b32 %3, 0, %3, %5              ;; shift = (x < -126) ? 64.0f : 0.0f\n\t"
+      "v_add_f32_e32 %4, %6, %3                 ;; tmp = x + shift\n\t"
+      "v_exp_f32_e32 %4, %4                     ;; tmp = 2^(x+shift)\n\t"
+      "s_nop 0                                  ;; wait-state for v_exp_f32 result\n\t"
+      "v_mul_f32_e32 %0, %4, %0                 ;; result = tmp * scale\n\t"
+      : "=&v"(result),    // %0
+        "=&v"(thresh),    // %1
+        "=&v"(sub_scale), // %2
+        "=&v"(shift),     // %3
+        "=v"(tmp),        // %4 no early clobber, written only after all inputs are consumed.
+        "=s"(stemp)       // %5 no early clobber, scalar output cannot overlap vector inputs.
+      : "v"(x)            // %6
+      : /* no clobbers */ );
+
+  return result;
+}
 // clang-format on
 
-#define CUSTOM_RCPF rcp_f32_inplace
+#ifdef DILUVIAN_FAST_MATH
+#define CUSTOM_EXP2F exp2_f32_inplace
+#else
+//#define CUSTOM_EXP2F exp2_f32_subnorm_fixup_vcc
+#define CUSTOM_EXP2F exp2_f32_subnorm_fixup_stemp
+#endif
 
-struct RcpCase {
+struct Exp2Case {
   float x;
   const char *label;
 };
 
-static constexpr RcpCase kCases[] = {
+static constexpr Exp2Case kCases[] = {
+    {0.0f, "0"},
     {1.0f, "1"},
     {2.0f, "2"},
-    {4.0f, "4"},
-    {10.0f, "10"},
-    {0.5f, "0.5"},
-    {0.25f, "0.25"},
     {-1.0f, "-1"},
     {-2.0f, "-2"},
+    {0.5f, "0.5"},
+    {-0.5f, "-0.5"},
+    {10.0f, "10"},
     {-10.0f, "-10"},
-    {3.14159265f, "pi"},
-    {2.71828183f, "e"},
-    {7.0f, "7"},
-    {49.0f, "49"},
+    {126.0f, "126"},
     {127.0f, "127"},
-    {255.0f, "255"},
-
-    {0.0f, "+0"},
-    {-0.0f, "-0"},
+    {128.0f, "128 (ovfl)"},
+    {-126.0f, "-126 (FLT_MIN)"},
+    {-149.0f, "-149 (min sub)"},
+    {-150.0f, "-150 (->0)"},
     {std::numeric_limits<float>::infinity(), "+inf"},
     {-std::numeric_limits<float>::infinity(), "-inf"},
     {std::numeric_limits<float>::quiet_NaN(), "NaN"},
-
-    {std::numeric_limits<float>::min(), "FLT_MIN"},
-    {-std::numeric_limits<float>::min(), "-FLT_MIN"},
-    {std::numeric_limits<float>::max(), "FLT_MAX"},
-    {-std::numeric_limits<float>::max(), "-FLT_MAX"},
-    {std::numeric_limits<float>::denorm_min(), "TRUE_MIN"},
-    {-std::numeric_limits<float>::denorm_min(), "-TRUE_MIN"},
-
+    {1.401298e-45f, "min subnorm input"},
+    {-1.401298e-45f, "-min subnorm input"},
+    {std::numeric_limits<float>::min(), "FLT_MIN input"},
+    {-std::numeric_limits<float>::min(), "-FLT_MIN input"},
+    {std::numeric_limits<float>::max(), "FLT_MAX input"},
+    {-std::numeric_limits<float>::max(), "-FLT_MAX input"},
+    {3.14159265f, "pi"},
+    {2.71828183f, "e"},
     {1e-7f, "1e-7"},
     {-1e-7f, "-1e-7"},
     {1e-20f, "1e-20"},
@@ -77,14 +142,14 @@ static constexpr RcpCase kCases[] = {
     {-1e-38f, "-1e-38"},
 };
 
-class RcpTester {
+class Exp2Tester {
 public:
   static constexpr size_t N = sizeof(kCases) / sizeof(kCases[0]);
   float input[N];
   float output_asm[N];
-  float output_rocm_div[N];
+  float output_rocm_exp2[N];
 
-  __host__ RcpTester() {
+  __host__ Exp2Tester() {
     for (size_t i = 0; i < N; i++) {
       input[i] = kCases[i].x;
     }
@@ -92,32 +157,32 @@ public:
 
   void __host__ reset() {
     std::memset(output_asm, 0xff, sizeof(output_asm));
-    std::memset(output_rocm_div, 0xff, sizeof(output_rocm_div));
+    std::memset(output_rocm_exp2, 0xff, sizeof(output_rocm_exp2));
   }
 
   void __host__ displayResults(const float *torchinductor,
                                const float *torcheager) const;
 
-  __global__ static void testKernelRcpAsm(RcpTester *self) {
+  __global__ static void testKernelExp2Asm(Exp2Tester *self) {
     size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < N) {
-      self->output_asm[idx] = CUSTOM_RCPF(self->input[idx]);
+      self->output_asm[idx] = CUSTOM_EXP2F(self->input[idx]);
     }
   }
 
-  __global__ static void testKernelROCmDiv(RcpTester *self) {
+  __global__ static void testKernelROCmExp2(Exp2Tester *self) {
     size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < N) {
-      self->output_rocm_div[idx] = 1.0f / self->input[idx];
+      self->output_rocm_exp2[idx] = exp2f(self->input[idx]);
     }
   }
 
-  __global__ static void testKernelOneRcpAsm(RcpTester *self) {
-    self->output_asm[0] = CUSTOM_RCPF(self->input[0]);
+  __global__ static void testKernelOneExp2Asm(Exp2Tester *self) {
+      self->output_asm[0] = CUSTOM_EXP2F(self->input[0]);
   }
 
-  __global__ static void testKernelOneROCmDiv(RcpTester *self) {
-    self->output_rocm_div[0] = 1.0f / self->input[0];
+  __global__ static void testKernelOneROCmExp2(Exp2Tester *self) {
+      self->output_rocm_exp2[0] = exp2f(self->input[0]);
   }
 };
 
@@ -125,26 +190,26 @@ bool verbose{};
 bool useColor{};
 bool quiet{};
 
-void __host__ RcpTester::displayResults(const float *torchinductor,
-                                        const float *torcheager) const {
+void __host__ Exp2Tester::displayResults(const float *torchinductor,
+                                         const float *torcheager) const {
   if (useColor) {
     std::cout << RED;
   }
-  std::cout << "REC: 1/x\n\n\n\n";
+  std::cout << "POW2: exp2f(x)\n\n\n\n";
   if (useColor) {
     std::cout << RESET;
   }
 
   std::cout << std::format("{:>4}"     // Idx
                            "{:>16}"    // x
-                           "{:>20}"    // Label
-                           "{:>16}"    // 1/x (ref)
-                           "{:>16}"    // 1.0f/x
+                           "{:>22}"    // Label
+                           "{:>16}"    // std::exp2
+                           "{:>16}"    // exp2f
                            "{:>16}"    // ASM
                            "{:>16}"    // torch-eager
                            "{:>16}\n", // torch-inductor
-                           "Idx", "x", "Label", "1/x(ref)", "1.0f/x",
-                           "ASM(rcp)",
+                           "Idx", "x", "Label", "std::exp2", "exp2f",
+                           "ASM(2^x)",
                            torcheager ? "torch-eager" : "",
                            torchinductor ? "torch-inductor" : "");
 
@@ -152,9 +217,9 @@ void __host__ RcpTester::displayResults(const float *torchinductor,
 
   for (size_t i = 0; i < N; i++) {
     float x = input[i];
-    float ref = 1.0f / x;
+    float ref = std::exp2(x);
 
-    OneResult32 v_div(ref, output_rocm_div[i], true, verbose);
+    OneResult32 v_exp2f(ref, output_rocm_exp2[i], true, verbose);
     OneResult32 v_asm(ref, output_asm[i], true, verbose);
     OneResult32 v_eager(ref, torcheager ? torcheager[i] : 0.0f,
                       torcheager != nullptr, verbose);
@@ -165,19 +230,19 @@ void __host__ RcpTester::displayResults(const float *torchinductor,
     std::memcpy(&rbits, &ref, sizeof(ref));
     std::string ref_hex = std::format("0x{:08x}", rbits);
 
-    bool allMatch = v_div.match and v_asm.match and
+    bool allMatch = v_exp2f.match and v_asm.match and
                     v_inductor.match and v_eager.match;
 
     if (!quiet or !allMatch) {
       std::cout << std::format("{:>4}"
                                "{:>16g}"
-                               "{:>20}"
+                               "{:>22}"
                                "{:>16.6g}"
                                "{}"
                                "{}"
                                "{}"
                                "{}\n",
-                               i, x, kCases[i].label, ref, v_div.value(),
+                               i, x, kCases[i].label, ref, v_exp2f.value(),
                                v_asm.value(), v_eager.value(),
                                v_inductor.value());
     }
@@ -186,24 +251,25 @@ void __host__ RcpTester::displayResults(const float *torchinductor,
       std::string hexline = std::format(
           "{:>4}"
           "{:>16}"
-          "{:>20}"
+          "{:>22}"
           "{:>16}"
           "{:>16}"
           "{:>16}"
           "{:>16}"
           "{:>16}\n",
-          "", "", "", ref_hex, v_div.hexValue(), v_asm.hexValue(),
+          "", "", "", ref_hex, v_exp2f.hexValue(), v_asm.hexValue(),
           v_eager.hexValue(), v_inductor.hexValue());
       std::cout << hexline;
 
-      std::string es_div = v_div.errorString();
+      std::string es_exp2f = v_exp2f.errorString();
       std::string es_asm = v_asm.errorString();
       std::string es_eager = v_eager.errorString();
       std::string es_inductor = v_inductor.errorString();
 
       const char *color = YELLOW;
-      if ((es_div == "ERROR") or (es_asm == "ERROR") or
-          (es_eager == "ERROR") or (es_inductor == "ERROR")) {
+      if ((es_exp2f == "ERROR") or (es_asm == "ERROR") or
+          (es_eager == "ERROR") or
+          (es_inductor == "ERROR")) {
         color = RED;
       }
 
@@ -214,13 +280,13 @@ void __host__ RcpTester::displayResults(const float *torchinductor,
       std::string matchline =
           std::format("{:>4}"
                       "{:>16}"
-                      "{:>20}"
+                      "{:>22}"
                       "{:>16}"
                       "{:>16}"
                       "{:>16}"
                       "{:>16}"
                       "{:>16}\n",
-                      "", "", "", "", es_div, es_asm,
+                      "", "", "", "", es_exp2f, es_asm,
                       es_eager, es_inductor);
       std::cout << matchline;
 
@@ -260,18 +326,17 @@ int main(int argc, char **argv) {
       dumpFile = optarg;
       break;
     case 'h': {
-      std::cout << "rcp_test"
+      std::cout << "exp2f_test"
                    " [--verbose]"
                    " [--quiet]"
                    " [--color]"
                    " [--dump-inputs filename]"
-                   " [--torcheager torcheagerreciprocal.bin]"
-                   " [--torchinductor torchinductorreciprocal.bin]"
+                   " [--torcheager torcheagerexp2.bin]"
+                   " [--torchinductor torchinductorexp2.bin]"
                    "\n\n"
-                   "Run with:\n"
-                   "  ./rcp_test --dump-inputs ./rcptest.in\n"
-                   "  ../torchunary.py --op reciprocal --file ./rcptest.in\n"
-                   "  ./rcp_test --torchinductor torchinductorreciprocal.bin --torcheager torcheagerreciprocal.bin --verbose --quiet --color | less -R\n\n"
+                   "./exp2f_test --dump-inputs ./exp2test.in\n"
+                   "../torchunary.py --op exp2 --file ./exp2test.in\n"
+                   "./exp2f_test --torchinductor torchinductorexp2.bin --torcheager torcheagerexp2.bin --verbose --quiet --color | less -R\n\n"
                    "\t--dump-inputs filename.  Write input values as binary "
                    "floats to file (x0,x1,x2,...)\n"
                    "\t--verbose.  Show hex values, even if not mismatches\n"
@@ -287,7 +352,7 @@ int main(int argc, char **argv) {
       torcheagerFile = optarg;
       break;
     default:
-      std::cerr << "rcp_test: unknown option\n";
+      std::cerr << "exp2f_test: unknown option\n";
       return 1;
     }
   }
@@ -298,8 +363,8 @@ int main(int argc, char **argv) {
       std::cerr << "Failed to open file for writing: " << dumpFile << std::endl;
       return 2;
     }
-    RcpTester tmp;
-    for (size_t i = 0; i < RcpTester::N; ++i) {
+    Exp2Tester tmp;
+    for (size_t i = 0; i < Exp2Tester::N; ++i) {
       ofs.write(reinterpret_cast<const char *>(&tmp.input[i]), sizeof(float));
     }
     ofs.close();
@@ -309,38 +374,38 @@ int main(int argc, char **argv) {
 
   std::vector<float> torchinductorOut, torcheagerOut;
   if (torchinductorFile) {
-    torchinductorOut = readBinaryFloatFile(torchinductorFile, RcpTester::N);
+    torchinductorOut = readBinaryFloatFile(torchinductorFile, Exp2Tester::N);
     if (torchinductorOut.empty())
       torchinductorFile = nullptr;
   }
   if (torcheagerFile) {
-    torcheagerOut = readBinaryFloatFile(torcheagerFile, RcpTester::N);
+    torcheagerOut = readBinaryFloatFile(torcheagerFile, Exp2Tester::N);
     if (torcheagerOut.empty())
       torcheagerFile = nullptr;
   }
 
-  RcpTester *tester;
-  HIP_CHECK(hipMallocManaged(&tester, sizeof(RcpTester)));
+  Exp2Tester *tester;
+  CUDA_CHECK(hipMallocManaged(&tester, sizeof(Exp2Tester)));
 
-  new (tester) RcpTester();
+  new (tester) Exp2Tester();
 
-  dim3 blockSize(RcpTester::N);
+  dim3 blockSize(Exp2Tester::N);
   dim3 gridSize(1);
 
   tester->reset();
 
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(RcpTester::testKernelRcpAsm), gridSize,
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(Exp2Tester::testKernelExp2Asm), gridSize,
                      blockSize, 0, 0, tester);
-  HIP_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(hipDeviceSynchronize());
 
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(RcpTester::testKernelROCmDiv), gridSize,
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(Exp2Tester::testKernelROCmExp2), gridSize,
                      blockSize, 0, 0, tester);
-  HIP_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(hipDeviceSynchronize());
 
   tester->displayResults(torchinductorFile ? torchinductorOut.data() : nullptr,
                          torcheagerFile ? torcheagerOut.data() : nullptr);
 
-  HIP_CHECK(hipFree(tester));
+  CUDA_CHECK(hipFree(tester));
   return 0;
 }
 

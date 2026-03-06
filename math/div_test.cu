@@ -13,16 +13,13 @@
 //   v_nop:      pipeline hazard avoidance
 //   v_mul_f32:  multiply a * (1/b)
 //
-// Compile:
-//   hipcc -O2 -std=c++20 div_test.hip -o div_test
-//
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <format>
 #include <fstream>
 #include <getopt.h>
-#include <hip/hip_runtime.h>
+#include <cuda_runtime.h>
 #include <iostream>
 #include <limits>
 #include <vector>
@@ -1083,7 +1080,7 @@ int main(int argc, char **argv) {
   }
 
   DivTester *tester;
-  HIP_CHECK(hipMallocManaged(&tester, sizeof(DivTester)));
+  CUDA_CHECK(hipMallocManaged(&tester, sizeof(DivTester)));
   new (tester) DivTester();
   tester->reset();
 
@@ -1092,15 +1089,15 @@ int main(int argc, char **argv) {
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(DivTester::testKernelDiv), gridSize,
                      blockSize, 0, 0, tester);
-  HIP_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(hipDeviceSynchronize());
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(DivTester::testKernelFdividef), gridSize,
                      blockSize, 0, 0, tester);
-  HIP_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(hipDeviceSynchronize());
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(DivTester::testKernelCustomDiv), gridSize,
                      blockSize, 0, 0, tester);
-  HIP_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(hipDeviceSynchronize());
 
   if (compact) {
     tester->displayResults();
@@ -1110,7 +1107,7 @@ int main(int argc, char **argv) {
                            torcheagerFile ? torcheagerOut.data() : nullptr);
   }
 
-  HIP_CHECK(hipFree(tester));
+  CUDA_CHECK(hipFree(tester));
   return 0;
 }
 

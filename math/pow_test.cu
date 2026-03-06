@@ -16,10 +16,7 @@
 //   v_mul_f32   tmp, b, tmp   // b * log2(a)
 //   v_exp_f32   tmp, tmp      // 2^(b * log2(a))
 //
-// Compile:
-//   hipcc -O2 -std=c++20 pow_test.hip -o pow_test
-//
-#include <hip/hip_runtime.h>
+#include <cuda_runtime.h>
 #include <getopt.h>
 #include <limits>
 #include <unistd.h>
@@ -1151,7 +1148,7 @@ int main(int argc, char **argv) {
   }
 
   PowTester *tester;
-  HIP_CHECK(hipMallocManaged(&tester, sizeof(PowTester)));
+  CUDA_CHECK(hipMallocManaged(&tester, sizeof(PowTester)));
   new (tester) PowTester();
   tester->reset();
 
@@ -1160,22 +1157,22 @@ int main(int argc, char **argv) {
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(PowTester::testKernelPowf), gridSize,
                      blockSize, 0, 0, tester);
-  HIP_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(hipDeviceSynchronize());
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(PowTester::testKernelFastPowf), gridSize,
                      blockSize, 0, 0, tester);
-  HIP_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(hipDeviceSynchronize());
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(PowTester::testKernelCustomPow), gridSize,
                      blockSize, 0, 0, tester);
-  HIP_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(hipDeviceSynchronize());
 
   tester->displayResults(tester->output_powf, tester->output_fast_powf,
                          tester->output_custom,
                          torchinductorFile ? torchinductorOut.data() : nullptr,
                          torcheagerFile ? torcheagerOut.data() : nullptr);
 
-  HIP_CHECK(hipFree(tester));
+  CUDA_CHECK(hipFree(tester));
   return 0;
 }
 

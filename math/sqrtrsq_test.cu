@@ -11,16 +11,13 @@
 // v_sqrt_f32: computes sqrt(x)
 // v_rsq_f32:  computes 1/sqrt(x) (reciprocal square root)
 //
-// Compile:
-//   hipcc -O2 -std=c++20 sqrtrsq_test.hip -o sqrtrsq_test
-//
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <format>
 #include <fstream>
 #include <getopt.h>
-#include <hip/hip_runtime.h>
+#include <cuda_runtime.h>
 #include <iostream>
 #include <limits>
 #include <vector>
@@ -742,7 +739,7 @@ int main(int argc, char **argv) {
   }
 
   SqrtRsqTester *tester;
-  HIP_CHECK(hipMallocManaged(&tester, sizeof(SqrtRsqTester)));
+  CUDA_CHECK(hipMallocManaged(&tester, sizeof(SqrtRsqTester)));
   new (tester) SqrtRsqTester();
   tester->reset();
 
@@ -752,26 +749,26 @@ int main(int argc, char **argv) {
   if (op == SqrtOp::Sqrt) {
     hipLaunchKernelGGL(HIP_KERNEL_NAME(SqrtRsqTester::testKernelSqrtf),
                        gridSize, blockSize, 0, 0, tester);
-    HIP_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(hipDeviceSynchronize());
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(SqrtRsqTester::testKernelCustomSqrt),
                        gridSize, blockSize, 0, 0, tester);
-    HIP_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(hipDeviceSynchronize());
   } else {
     hipLaunchKernelGGL(HIP_KERNEL_NAME(SqrtRsqTester::testKernelRsqrtf),
                        gridSize, blockSize, 0, 0, tester);
-    HIP_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(hipDeviceSynchronize());
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(SqrtRsqTester::testKernelCustomRsqrt),
                        gridSize, blockSize, 0, 0, tester);
-    HIP_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(hipDeviceSynchronize());
   }
 
   tester->displayResults(op,
                          torchinductorFile ? torchinductorOut.data() : nullptr,
                          torcheagerFile ? torcheagerOut.data() : nullptr);
 
-  HIP_CHECK(hipFree(tester));
+  CUDA_CHECK(hipFree(tester));
   return 0;
 }
 

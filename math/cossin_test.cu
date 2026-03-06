@@ -13,16 +13,13 @@
 // sin(x*2*pi) where x is the input. So to compute cos/sin(radians), we need:
 //   v_cos_f32/v_sin_f32 with input = radians / (2*pi)
 //
-// Compile:
-//   hipcc -O2 -std=c++20 cossin_test.hip -o cossin_test
-//
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <format>
 #include <fstream>
 #include <getopt.h>
-#include <hip/hip_runtime.h>
+#include <cuda_runtime.h>
 #include <iostream>
 #include <limits>
 #include <numbers>
@@ -839,7 +836,7 @@ int main(int argc, char **argv) {
   }
 
   TrigTester *tester;
-  HIP_CHECK(hipMallocManaged(&tester, sizeof(TrigTester)));
+  CUDA_CHECK(hipMallocManaged(&tester, sizeof(TrigTester)));
   new (tester) TrigTester();
   tester->reset();
 
@@ -848,40 +845,40 @@ int main(int argc, char **argv) {
 
   if (op == TrigOp::Cos) {
     hipLaunchKernelGGL(HIP_KERNEL_NAME(TrigTester::testKernelCosf), gridSize, blockSize, 0, 0, tester);
-    HIP_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(hipDeviceSynchronize());
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(TrigTester::testKernelFastCos), gridSize, blockSize, 0, 0, tester);
-    HIP_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(hipDeviceSynchronize());
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(TrigTester::testKernelCustomCosSimple), gridSize, blockSize, 0, 0, tester);
-    HIP_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(hipDeviceSynchronize());
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(TrigTester::testKernelCustomCosDPScale), gridSize, blockSize, 0, 0, tester);
-    HIP_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(hipDeviceSynchronize());
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(TrigTester::testKernelCustomCosDPReduce), gridSize, blockSize, 0, 0, tester);
-    HIP_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(hipDeviceSynchronize());
   } else {
     hipLaunchKernelGGL(HIP_KERNEL_NAME(TrigTester::testKernelSinf), gridSize, blockSize, 0, 0, tester);
-    HIP_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(hipDeviceSynchronize());
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(TrigTester::testKernelFastSin), gridSize, blockSize, 0, 0, tester);
-    HIP_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(hipDeviceSynchronize());
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(TrigTester::testKernelCustomSinSimple), gridSize, blockSize, 0, 0, tester);
-    HIP_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(hipDeviceSynchronize());
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(TrigTester::testKernelCustomSinDPScale), gridSize, blockSize, 0, 0, tester);
-    HIP_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(hipDeviceSynchronize());
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(TrigTester::testKernelCustomSinDPReduce), gridSize, blockSize, 0, 0, tester);
-    HIP_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(hipDeviceSynchronize());
   }
 
   tester->displayResults(op, torchinductorFile ? torchinductorOut.data() : nullptr,
                          torcheagerFile ? torcheagerOut.data() : nullptr);
 
-  HIP_CHECK(hipFree(tester));
+  CUDA_CHECK(hipFree(tester));
   return 0;
 }
 

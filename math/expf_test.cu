@@ -12,7 +12,7 @@
 #include <format>
 #include <fstream>
 #include <getopt.h>
-#include <hip/hip_runtime.h>
+#include <cuda_runtime.h>
 #include <iostream>
 #include <limits>
 #include <vector>
@@ -559,7 +559,7 @@ int main(int argc, char **argv) {
 
   // Allocate tester object in managed memory
   ExpTester *tester;
-  HIP_CHECK(hipMallocManaged(&tester, sizeof(ExpTester)));
+  CUDA_CHECK(hipMallocManaged(&tester, sizeof(ExpTester)));
 
   new (tester) ExpTester();
 
@@ -572,24 +572,24 @@ int main(int argc, char **argv) {
   // Test CUSTOM_EXPF (e^x via mul+exp)
   hipLaunchKernelGGL(HIP_KERNEL_NAME(ExpTester::testKernelExp), gridSize,
                      blockSize, 0, 0, tester);
-  HIP_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(hipDeviceSynchronize());
 
   // Test ROCm expf()
   hipLaunchKernelGGL(HIP_KERNEL_NAME(ExpTester::testKernelROCmExp), gridSize,
                      blockSize, 0, 0, tester);
-  HIP_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(hipDeviceSynchronize());
 
   // Test ROCm __expf()
   hipLaunchKernelGGL(HIP_KERNEL_NAME(ExpTester::testKernelROCmFExp), gridSize,
                      blockSize, 0, 0, tester);
-  HIP_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(hipDeviceSynchronize());
 
   // Display results (computes CPU reference inline)
   tester->displayResults(torchinductorFile ? torchinductorOut.data() : nullptr,
                          torcheagerFile ? torcheagerOut.data() : nullptr);
 
   // Cleanup
-  HIP_CHECK(hipFree(tester));
+  CUDA_CHECK(hipFree(tester));
 
   return 0;
 }
