@@ -25,7 +25,7 @@
 #include "readbinary.hpp"
 #include "OneResult32.hpp"
 #include "colors.hpp"
-#include "hipcheck.hpp"
+#include "cuda_check.hpp"
 
 // ---------------------------------------------------------------------------
 // Custom pow

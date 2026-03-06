@@ -20,7 +20,7 @@
 #include "readbinary.hpp"
 #include "OneResult32.hpp"
 #include "colors.hpp"
-#include "hipcheck.hpp"
+#include "cuda_check.hpp"
 
 // clang-format off
 // Proper e^x implementation using v_mul_f32 + v_exp_f32

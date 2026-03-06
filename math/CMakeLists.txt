@@ -5,8 +5,8 @@ endfunction()
 
 add_cuda_executable(cossin_test)
 add_cuda_executable(div_test)
+add_cuda_executable(exp2f_test)
 
-#add_cuda_executable(exp2f_test)
 #add_cuda_executable(expf_test)
 #add_cuda_executable(pow_test)
 #add_cuda_executable(rcp_test)

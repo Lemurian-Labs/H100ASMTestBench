@@ -19,7 +19,7 @@
 #include "readbinary.hpp"
 #include "OneResult32.hpp"
 #include "colors.hpp"
-#include "hipcheck.hpp"
+#include "cuda_check.hpp"
 
 // clang-format off
 inline float __device__ exp2_f32(float x) {
@@ -75,7 +75,7 @@ public:
   static constexpr size_t N = sizeof(kCases) / sizeof(kCases[0]);
   float input[N];
   float output_asm[N];
-  float output_rocm_exp2[N];
+  float output_cuda_exp2[N];
 
   __host__ Exp2Tester() {
     for (size_t i = 0; i < N; i++) {
@@ -85,34 +85,34 @@ public:
 
   void __host__ reset() {
     std::memset(output_asm, 0xff, sizeof(output_asm));
-    std::memset(output_rocm_exp2, 0xff, sizeof(output_rocm_exp2));
+    std::memset(output_cuda_exp2, 0xff, sizeof(output_cuda_exp2));
   }
 
   void __host__ displayResults(const float *torchinductor,
                                const float *torcheager) const;
-
-  __global__ static void testKernelExp2Asm(Exp2Tester *self) {
-    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < N) {
-      self->output_asm[idx] = CUSTOM_EXP2F(self->input[idx]);
-    }
-  }
-
-  __global__ static void testKernelROCmExp2(Exp2Tester *self) {
-    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < N) {
-      self->output_rocm_exp2[idx] = exp2f(self->input[idx]);
-    }
-  }
-
-  __global__ static void testKernelOneExp2Asm(Exp2Tester *self) {
-      self->output_asm[0] = CUSTOM_EXP2F(self->input[0]);
-  }
-
-  __global__ static void testKernelOneROCmExp2(Exp2Tester *self) {
-      self->output_rocm_exp2[0] = exp2f(self->input[0]);
-  }
 };
+
+__global__ void testKernelExp2Asm(Exp2Tester *self) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < Exp2Tester::N) {
+    self->output_asm[idx] = CUSTOM_EXP2F(self->input[idx]);
+  }
+}
+
+__global__ void testKernelCudaExp2(Exp2Tester *self) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < Exp2Tester::N) {
+    self->output_cuda_exp2[idx] = exp2f(self->input[idx]);
+  }
+}
+
+__global__ void testKernelOneExp2Asm(Exp2Tester *self) {
+    self->output_asm[0] = CUSTOM_EXP2F(self->input[0]);
+}
+
+__global__ void testKernelOneCudaExp2(Exp2Tester *self) {
+    self->output_cuda_exp2[0] = exp2f(self->input[0]);
+}
 
 bool verbose{};
 bool useColor{};
@@ -147,7 +147,7 @@ void __host__ Exp2Tester::displayResults(const float *torchinductor,
     float x = input[i];
     float ref = std::exp2(x);
 
-    OneResult32 v_exp2f(ref, output_rocm_exp2[i], true, verbose);
+    OneResult32 v_exp2f(ref, output_cuda_exp2[i], true, verbose);
     OneResult32 v_asm(ref, output_asm[i], true, verbose);
     OneResult32 v_eager(ref, torcheager ? torcheager[i] : 0.0f,
                       torcheager != nullptr, verbose);
@@ -322,12 +322,10 @@ int main(int argc, char **argv) {
 
   tester->reset();
 
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(Exp2Tester::testKernelExp2Asm), gridSize,
-                     blockSize, 0, 0, tester);
+  testKernelExp2Asm<<<gridSize, blockSize>>>(tester);
   CUDA_CHECK(cudaDeviceSynchronize());
 
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(Exp2Tester::testKernelROCmExp2), gridSize,
-                     blockSize, 0, 0, tester);
+  testKernelCudaExp2<<<gridSize, blockSize>>>(tester);
   CUDA_CHECK(cudaDeviceSynchronize());
 
   tester->displayResults(torchinductorFile ? torchinductorOut.data() : nullptr,

@@ -18,7 +18,7 @@
 #include "readbinary.hpp"
 #include "OneResult32.hpp"
 #include "colors.hpp"
-#include "hipcheck.hpp"
+#include "cuda_check.hpp"
 
 // clang-format off
 inline float __device__ rcp_f32_inplace(float x) {
