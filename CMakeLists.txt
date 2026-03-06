@@ -7,4 +7,7 @@ endif()
 
 project(H100ASMTestBench LANGUAGES CUDA)
 
+# Global CUDA compile option: keep intermediate nvcc compilation files.
+add_compile_options($<$<COMPILE_LANGUAGE:CUDA>:--keep>)
+
 add_subdirectory(demo)
