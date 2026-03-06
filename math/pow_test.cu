@@ -1,5 +1,5 @@
 //
-// pow_test.hip
+// pow_test.cu
 //
 // Tests the builtin powf() / __powf() on AMD MI300 hardware, comparing
 // results against std::pow() computed on the CPU.

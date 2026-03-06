@@ -1,5 +1,5 @@
 //
-// div_test.hip
+// div_test.cu
 //
 // Tests division using v_rcp_f32 + v_mul_f32 on AMD MI300 hardware,
 // comparing results against standard division (/) computed on the CPU.

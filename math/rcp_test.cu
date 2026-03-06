@@ -1,5 +1,5 @@
 //
-// rcp_test.hip
+// rcp_test.cu
 //
 // Tests reciprocal using v_rcp_f32 on AMD MI300 hardware,
 // comparing against 1.0f / x and optional torch reciprocal outputs.

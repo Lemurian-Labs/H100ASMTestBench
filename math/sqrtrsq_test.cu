@@ -1,5 +1,5 @@
 //
-// sqrtrsq_test.hip
+// sqrtrsq_test.cu
 //
 // Tests the v_sqrt_f32 and v_rsq_f32 instructions on AMD MI300 hardware,
 // comparing results against std::sqrt() and 1/std::sqrt() computed on the CPU.

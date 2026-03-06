@@ -1,5 +1,5 @@
 //
-// exp2f_test.hip
+// exp2f_test.cu
 //
 // Test harness for 2^x on GPU:
 //   - direct v_exp_f32 asm (CUSTOM_EXP2F)
