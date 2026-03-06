@@ -1,4 +1,4 @@
-// header only implementation for convienent use in .hip files
+// header only implementation for convienent use in .cu files
 #pragma once
 
 #include <cstddef>

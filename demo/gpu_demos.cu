@@ -7,6 +7,8 @@
 #include <stdexcept>
 #include <string>
 
+#include "cuda_check.hpp"
+
 // ============================================================================
 // Demo 1: Lane-based argument shuffling and DMA-style operations
 // ============================================================================
@@ -110,12 +112,7 @@ void queryOneDevice(int dev) {
 
 void queryDeviceProperties(int device) {
   int deviceCount = 0;
-  cudaError_t error = cudaGetDeviceCount(&deviceCount);
-
-  if (error != cudaSuccess) {
-    printf("cudaGetDeviceCount failed: %s\n", cudaGetErrorString(error));
-    return;
-  }
+  CUDA_CHECK(cudaGetDeviceCount(&deviceCount));
 
   printf("Found %d CUDA device(s)\n\n", deviceCount);
 
@@ -154,12 +151,12 @@ void demoVectorAdd(int n) {
   }
 
   float *dA, *dB, *dC;
-  cudaMalloc(&dA, bytes);
-  cudaMalloc(&dB, bytes);
-  cudaMalloc(&dC, bytes);
+  CUDA_CHECK(cudaMalloc(&dA, bytes));
+  CUDA_CHECK(cudaMalloc(&dB, bytes));
+  CUDA_CHECK(cudaMalloc(&dC, bytes));
 
-  cudaMemcpy(dA, hA, bytes, cudaMemcpyHostToDevice);
-  cudaMemcpy(dB, hB, bytes, cudaMemcpyHostToDevice);
+  CUDA_CHECK(cudaMemcpy(dA, hA, bytes, cudaMemcpyHostToDevice));
+  CUDA_CHECK(cudaMemcpy(dB, hB, bytes, cudaMemcpyHostToDevice));
 
   int blockSize = 256;
   int gridSize = (n + blockSize - 1) / blockSize;
@@ -178,13 +175,9 @@ void demoVectorAdd(int n) {
   );
 #endif
 
-  cudaError_t err = cudaGetLastError();
-  if (err != cudaSuccess) {
-    printf("Kernel launch error: %s\n", cudaGetErrorString(err));
-  }
-
-  cudaDeviceSynchronize();
-  cudaMemcpy(hC, dC, bytes, cudaMemcpyDeviceToHost);
+  CUDA_CHECK(cudaGetLastError());
+  CUDA_CHECK(cudaDeviceSynchronize());
+  CUDA_CHECK(cudaMemcpy(hC, dC, bytes, cudaMemcpyDeviceToHost));
 
   // Verify first few elements
   bool correct = true;
@@ -203,9 +196,9 @@ void demoVectorAdd(int n) {
            hA[0], hB[0], hC[0], hA[1], hB[1], hC[1]);
   }
 
-  cudaFree(dA);
-  cudaFree(dB);
-  cudaFree(dC);
+  CUDA_CHECK(cudaFree(dA));
+  CUDA_CHECK(cudaFree(dB));
+  CUDA_CHECK(cudaFree(dC));
   delete[] hA;
   delete[] hB;
   delete[] hC;
@@ -230,23 +223,19 @@ void demoLaneShuffle() {
   }
 
   float *dInput, *dOutput;
-  cudaMalloc(&dInput, bytes);
-  cudaMalloc(&dOutput, bytes);
+  CUDA_CHECK(cudaMalloc(&dInput, bytes));
+  CUDA_CHECK(cudaMalloc(&dOutput, bytes));
 
-  cudaMemcpy(dInput, hInput, bytes, cudaMemcpyHostToDevice);
-  cudaMemcpy(dOutput, hOutput, bytes, cudaMemcpyHostToDevice);
+  CUDA_CHECK(cudaMemcpy(dInput, hInput, bytes, cudaMemcpyHostToDevice));
+  CUDA_CHECK(cudaMemcpy(dOutput, hOutput, bytes, cudaMemcpyHostToDevice));
 
   uint32_t s1 = 1, s2 = 2, s3 = 3, s4 = 0;
 
   dmaKernel<<<1, 32>>>(dInput, dOutput, s1, s2, s3, s4);
 
-  cudaError_t err = cudaGetLastError();
-  if (err != cudaSuccess) {
-    printf("Kernel launch error: %s\n", cudaGetErrorString(err));
-  }
-
-  cudaDeviceSynchronize();
-  cudaMemcpy(hOutput, dOutput, bytes, cudaMemcpyDeviceToHost);
+  CUDA_CHECK(cudaGetLastError());
+  CUDA_CHECK(cudaDeviceSynchronize());
+  CUDA_CHECK(cudaMemcpy(hOutput, dOutput, bytes, cudaMemcpyDeviceToHost));
 
   int offset = (s1 + 4 * (s2 + 4 * (s3 + 8 * s4))) * 32;
 
@@ -270,8 +259,8 @@ void demoLaneShuffle() {
            offset, hInput[offset], offset, hOutput[offset]);
   }
 
-  cudaFree(dInput);
-  cudaFree(dOutput);
+  CUDA_CHECK(cudaFree(dInput));
+  CUDA_CHECK(cudaFree(dOutput));
   delete[] hInput;
   delete[] hOutput;
 }
@@ -284,9 +273,9 @@ void demoOccupancy() {
   printf("Running occupancy calculation demo\n\n");
 
   int device;
-  cudaGetDevice(&device);
+  CUDA_CHECK(cudaGetDevice(&device));
   cudaDeviceProp prop;
-  cudaGetDeviceProperties(&prop, device);
+  CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
 
   int maxThreadsPerSM = prop.maxThreadsPerMultiProcessor;
   int regsPerSM = prop.regsPerMultiprocessor;
@@ -444,8 +433,8 @@ int main(int argc, char **argv) {
 
   // Check if CUDA is available
   int deviceCount;
-  cudaError_t error = cudaGetDeviceCount(&deviceCount);
-  if (error != cudaSuccess || deviceCount == 0) {
+  CUDA_CHECK(cudaGetDeviceCount(&deviceCount));
+  if (deviceCount == 0) {
     fprintf(stderr, "Error: No CUDA devices found\n");
     return 1;
   }

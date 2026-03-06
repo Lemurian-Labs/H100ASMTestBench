@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cuda_bf16.h>
+
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -8,13 +10,13 @@
 #include <string>
 
 struct OneResult16 {
-  __hip_bfloat16 v{};
+  __nv_bfloat16 v{};
   bool isValid{};
   bool match{};
   int16_t diff{};
   std::string hexString;
 
-  OneResult16(__hip_bfloat16 ref, __hip_bfloat16 value, bool valid,
+  OneResult16(__nv_bfloat16 ref, __nv_bfloat16 value, bool valid,
               bool verbose)
       : v{value}, isValid{valid} {
     if (!isValid) {

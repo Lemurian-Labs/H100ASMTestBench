@@ -7,7 +7,12 @@ endif()
 
 project(H100ASMTestBench LANGUAGES CUDA)
 
+set(CMAKE_CUDA_STANDARD 20)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+
 # Global CUDA compile option: keep intermediate nvcc compilation files.
 add_compile_options($<$<COMPILE_LANGUAGE:CUDA>:--keep>)
+
+include_directories(${PROJECT_SOURCE_DIR}/include)
 
 add_subdirectory(demo)
