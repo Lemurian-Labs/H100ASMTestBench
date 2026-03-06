@@ -1014,7 +1014,7 @@ int main(int argc, char **argv) {
                    "\n\n"
                    "Run with:\n"
                    "  ./div_test --dump-inputs ./divtest.in\n"
-                   "  ../torchbinary.py --op div --file ./divtest.in\n"
+                   "  ../torch/torchbinary.py --op div --file ./divtest.in\n"
                    "  ./div_test --torchinductor torchinductordiv.bin"
                    " --torcheager torcheagerdiv.bin --verbose --quiet --color"
                    " | less -R\n"

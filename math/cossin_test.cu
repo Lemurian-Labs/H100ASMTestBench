@@ -32,186 +32,15 @@
 
 // clang-format off
 // ---------------------------------------------------------------------------
-// Custom cos and sin using v_cos_f32 and v_sin_f32
+// Custom cos and sin: placeholders for future inline asm versions
 // ---------------------------------------------------------------------------
-// v_cos_f32 and v_sin_f32 compute cos(x * 2π) and sin(x * 2π),
-// so for standard cos/sin(radians), we need to divide the input by 2π first.
 inline float __device__ custom_cos_simple(float radians) {
-  // 1/(2π) ≈ 0.159154943 = 0x3e22f983 in IEEE 754
-  float result;
-  __asm__ __volatile__("v_mul_f32_e32 %0, 0x3e22f983, %1\n\t"
-                       "v_cos_f32_e32 %0, %0\n\t"
-                       : "=v"(result) // %0
-                       : "v"(radians) // %1
-  );
+  float result = cosf(radians);
   return result;
 }
 
 inline float __device__ custom_sin_simple(float radians) {
-  // 1/(2π) ≈ 0.159154943 = 0x3e22f983 in IEEE 754
-  float result;
-  __asm__ __volatile__("v_mul_f32_e32 %0, 0x3e22f983, %1\n\t"
-                       "v_sin_f32_e32 %0, %0\n\t"
-                       : "=v"(result) // %0
-                       : "v"(radians) // %1
-  );
-  return result;
-}
-
-inline float __device__ custom_cos_dp_scale(float radians_f32) {
-  // 1) radians_f64 = double(radians_f32)
-  // 2) phase_f64 = radians_f64 * 1/(2π)
-  // 3) phase_f32 = float(phase_f64)
-  // 3) result = cos(phase * 2π) via v_cos_f32
-  constexpr double inv_2pi_f64 = 0.1591549430918953357688837633725143620345;
-
-  double tmp_f64;
-  float result;
-  __asm__ __volatile__(
-      "v_cvt_f64_f32_e32 %1, %2                 ;; tmp_f64 = (double)radians_f32\n\t"
-      "v_mul_f64 %1, %1, %3                     ;; tmp_f64 *= inv_2pi_f64\n\t"
-      "v_cvt_f32_f64_e32 %0, %1                 ;; phase_f32 = (float)tmp_f64\n\t"
-      "v_cos_f32_e32 %0, %0                     ;; result = cos_phase(phase_f32)\n\t"
-      : "=&v"(result),          // %0
-        "=&v"(tmp_f64)          // %1
-      : "v"(radians_f32),       // %2
-        "v"(inv_2pi_f64)        // %3
-  );
-  return result;
-}
-
-inline float __device__ custom_sin_dp_scale(float radians_f32) {
-  // 1) radians_f64 = double(radians_f32)
-  // 2) phase_f64 = radians_f64 * 1/(2π)
-  // 3) phase_f32 = float(phase_f64)
-  // 3) result = sin(phase * 2π) via v_sin_f32
-  constexpr double inv_2pi_f64 = 0.1591549430918953357688837633725143620345;
-
-  double tmp_f64;
-  float result;
-  __asm__ __volatile__(
-      "v_cvt_f64_f32_e32 %1, %2                 ;; tmp_f64 = (double)radians_f32\n\t"
-      "v_mul_f64 %1, %1, %3                     ;; tmp_f64 *= inv_2pi_f64\n\t"
-      "v_cvt_f32_f64_e32 %0, %1                 ;; phase_f32 = (float)tmp_f64\n\t"
-      "v_sin_f32_e32 %0, %0                     ;; result = sin_phase(phase_f32)\n\t"
-      : "=&v"(result),          // %0
-        "=&v"(tmp_f64)          // %1
-      : "v"(radians_f32),       // %2
-        "v"(inv_2pi_f64)        // %3
-  );
-  return result;
-}
-
-inline float __device__ custom_cos_dp_reduce_rint_hybrid(float radians) {
-  // Hybrid approach:
-  //   1) do high-precision argument reduction in FP64
-  //   2) convert reduced phase to turns
-  //   3) evaluate with v_cos_f32
-  constexpr double inv_two_pi = 0.1591549430918953357688837633725143620345;
-  constexpr double two_pi_hi = 6.283185307179586232;
-  constexpr double two_pi_lo = 2.449293598294706414e-16;
-
-  double x = static_cast<double>(radians);
-  double n = __builtin_rint(x * inv_two_pi);
-  double reduced = __builtin_fma(-n, two_pi_hi, x);
-  reduced = __builtin_fma(-n, two_pi_lo, reduced);
-
-  float phase_turns = static_cast<float>(reduced * inv_two_pi);
-  float result;
-  __asm__ __volatile__("v_cos_f32_e32 %0, %1\n\t"
-                       : "=v"(result)      // %0
-                       : "v"(phase_turns)  // %1
-                       );
-  return result;
-}
-
-inline float __device__ custom_sin_dp_reduce_rint_hybrid(float radians) {
-  // Hybrid approach:
-  //   1) do high-precision argument reduction in FP64
-  //   2) convert reduced phase to turns
-  //   3) evaluate with v_sin_f32
-  constexpr double inv_two_pi = 0.1591549430918953357688837633725143620345;
-  constexpr double two_pi_hi = 6.283185307179586232;
-  constexpr double two_pi_lo = 2.449293598294706414e-16;
-
-  double x = static_cast<double>(radians);
-  double n = __builtin_rint(x * inv_two_pi);
-  double reduced = __builtin_fma(-n, two_pi_hi, x);
-  reduced = __builtin_fma(-n, two_pi_lo, reduced);
-
-  float phase_turns = static_cast<float>(reduced * inv_two_pi);
-  float result;
-  __asm__ __volatile__("v_sin_f32_e32 %0, %1\n\t"
-                       : "=v"(result)      // %0
-                       : "v"(phase_turns)  // %1
-                       );
-  return result;
-}
-
-inline float __device__ custom_cos_dp_reduce_rint_asm(float radians) {
-  // Core sequence extracted from generated code shape:
-  //   1) convert radians to f64
-  //   2) n = rint(radians * 1/(2π))
-  //   3) reduced = radians - n*2π_hi - n*2π_lo
-  //   4) phase = reduced * 1/(2π)
-  //   5) result = cos(phase * 2π) via v_cos_f32
-  constexpr double inv_two_pi = 0.1591549430918953357688837633725143620345;
-  constexpr double minus_two_pi_hi = -6.283185307179586232;
-  constexpr double minus_two_pi_lo = -2.449293598294706414e-16;
-
-  double radians_f64;
-  double turns_int;
-  double phase_turns_f64;
-  float result;
-  __asm__ __volatile__(
-      "v_cvt_f64_f32_e32 %0, %4                 ;; radians_f64 = (double)radians\n\t"
-      "v_mul_f64 %1, %0, %5                     ;; turns_int = radians_f64 * inv_two_pi\n\t"
-      "v_rndne_f64_e32 %1, %1                   ;; turns_int = rint(turns_int)\n\t"
-      "v_fma_f64 %2, %6, %1, %0                 ;; phase_turns_f64 = radians_f64 - turns_int*two_pi_hi\n\t"
-      "v_fma_f64 %2, %7, %1, %2                 ;; phase_turns_f64 -= turns_int*two_pi_lo\n\t"
-      "v_mul_f64 %2, %2, %5                     ;; phase_turns_f64 *= inv_two_pi\n\t"
-      "v_cvt_f32_f64_e32 %3, %2                 ;; result = (float)phase_turns_f64\n\t"
-      "v_cos_f32_e32 %3, %3                     ;; result = cos(radians/2π)\n\t"
-      : "=&v"(radians_f64),     // %0
-        "=&v"(turns_int),       // %1
-        "=&v"(phase_turns_f64), // %2
-        "=v"(result)            // %3
-      : "v"(radians),           // %4
-        "v"(inv_two_pi),        // %5
-        "v"(minus_two_pi_hi),   // %6
-        "v"(minus_two_pi_lo)    // %7
-  );
-  return result;
-}
-
-inline float __device__ custom_sin_dp_reduce_rint_asm(float radians) {
-  // Same DP range reduction as custom_cos_dp_reduce_fast, but final v_sin_f32.
-  constexpr double inv_two_pi = 0.1591549430918953357688837633725143620345;
-  constexpr double minus_two_pi_hi = -6.283185307179586232;
-  constexpr double minus_two_pi_lo = -2.449293598294706414e-16;
-
-  double radians_f64;
-  double turns_int;
-  double phase_turns_f64;
-  float result;
-  __asm__ __volatile__(
-      "v_cvt_f64_f32_e32 %0, %4                 ;; radians_f64 = (double)radians\n\t"
-      "v_mul_f64 %1, %0, %5                     ;; turns_int = radians_f64 * inv_two_pi\n\t"
-      "v_rndne_f64_e32 %1, %1                   ;; turns_int = rint(turns_int)\n\t"
-      "v_fma_f64 %2, %6, %1, %0                 ;; phase_turns_f64 = radians_f64 - turns_int*two_pi_hi\n\t"
-      "v_fma_f64 %2, %7, %1, %2                 ;; phase_turns_f64 -= turns_int*two_pi_lo\n\t"
-      "v_mul_f64 %2, %2, %5                     ;; phase_turns_f64 *= inv_two_pi\n\t"
-      "v_cvt_f32_f64_e32 %3, %2                 ;; result = (float)phase_turns_f64\n\t"
-      "v_sin_f32_e32 %3, %3                     ;; result = sin(radians/2π)\n\t"
-      : "=&v"(radians_f64),     // %0
-        "=&v"(turns_int),       // %1
-        "=&v"(phase_turns_f64), // %2
-        "=v"(result)            // %3
-      : "v"(radians),           // %4
-        "v"(inv_two_pi),        // %5
-        "v"(minus_two_pi_hi),   // %6
-        "v"(minus_two_pi_lo)    // %7
-  );
+  float result = sinf(radians);
   return result;
 }
 // clang-format on
@@ -767,8 +596,8 @@ int main(int argc, char **argv) {
                    "\n\n"
                    "Run with:\n"
                    "  ./cossin_test --dump-inputs ./trigunarytest.in\n"
-                   "  ../torchunary.py --op sin --file ./trigunarytest.in\n"
-                   "  ../torchunary.py --op cos --file ./trigunarytest.in\n"
+                   "  ../torch/torchunary.py --op sin --file ./trigunarytest.in\n"
+                   "  ../torch/torchunary.py --op cos --file ./trigunarytest.in\n"
                    "  ./cossin_test --op sin --torchinductor "
                    "torchinductorsin.bin --torcheager torcheagersin.bin "
                    "--verbose --quiet --color | less -R\n"
