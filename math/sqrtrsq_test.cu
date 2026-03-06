@@ -1,12 +1,12 @@
 //
 // sqrtrsq_test.cu
 //
-// Tests the v_sqrt_f32 and v_rsq_f32 instructions on AMD MI300 hardware,
+// Tests sqrt and rsqrt on NVIDIA H100 hardware,
 // comparing results against std::sqrt() and 1/std::sqrt() computed on the CPU.
 //
 // The intent is to:
-//   1. Establish ground truth via ROCm's sqrtf() and rsqrtf().
-//   2. Test hand-coded inline-asm sqrt(x) and rsqrt(x) using v_sqrt_f32 and v_rsq_f32.
+//   1. Establish ground truth via CUDA's sqrtf() and rsqrtf().
+//   2. Test hand-coded inline-asm sqrt(x) and rsqrt(x).
 //
 // v_sqrt_f32: computes sqrt(x)
 // v_rsq_f32:  computes 1/sqrt(x) (reciprocal square root)
@@ -194,7 +194,7 @@ public:
   static constexpr size_t N = 67;
 
   float input[N];
-  float output_libf[N];    // ROCm sqrtf() or rsqrtf()
+  float output_libf[N];    // CUDA sqrtf() or rsqrtf()
   float output_custom[N];  // CUSTOM_SQRT() or CUSTOM_RSQRT()
 
   __host__ SqrtRsqTester() {
@@ -207,56 +207,56 @@ public:
     std::memset(output_custom, 0xff, sizeof(output_custom));
   }
 
-  // -- kernels ---------------------------------------------------------------
-
-  __global__ static void testKernelSqrtf(SqrtRsqTester *self) {
-    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < N)
-      self->output_libf[idx] = sqrtf(self->input[idx]);
-  }
-
-  __global__ static void testKernelCustomSqrt(SqrtRsqTester *self) {
-    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < N)
-      self->output_custom[idx] = CUSTOM_SQRT(self->input[idx]);
-  }
-
-  __global__ static void testKernelRsqrtf(SqrtRsqTester *self) {
-    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < N)
-      self->output_libf[idx] = rsqrtf(self->input[idx]);
-  }
-
-  __global__ static void testKernelCustomRsqrt(SqrtRsqTester *self) {
-    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < N)
-      self->output_custom[idx] = CUSTOM_RSQRT(self->input[idx]);
-  }
-
-  // -- kernels for just looking at asm listings ------------------------------
-
-  __global__ static void testKernelOneSqrtf(SqrtRsqTester *self) {
-    self->output_libf[0] = sqrtf(self->input[0]);
-  }
-
-  __global__ static void testKernelOneCustomSqrt(SqrtRsqTester *self) {
-    self->output_custom[0] = CUSTOM_SQRT(self->input[0]);
-  }
-
-  __global__ static void testKernelOneRsqrtf(SqrtRsqTester *self) {
-    self->output_libf[0] = rsqrtf(self->input[0]);
-  }
-
-  __global__ static void testKernelOneCustomRsqrt(SqrtRsqTester *self) {
-    self->output_custom[0] = CUSTOM_RSQRT(self->input[0]);
-  }
-
   // -- display ---------------------------------------------------------------
 
   void __host__ displayResults(SqrtOp op,
                                const float *torchinductor,
                                const float *torcheager) const;
 };
+
+// -- kernels ---------------------------------------------------------------
+
+__global__ void testKernelSqrtf(SqrtRsqTester *self) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < SqrtRsqTester::N)
+    self->output_libf[idx] = sqrtf(self->input[idx]);
+}
+
+__global__ void testKernelCustomSqrt(SqrtRsqTester *self) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < SqrtRsqTester::N)
+    self->output_custom[idx] = CUSTOM_SQRT(self->input[idx]);
+}
+
+__global__ void testKernelRsqrtf(SqrtRsqTester *self) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < SqrtRsqTester::N)
+    self->output_libf[idx] = rsqrtf(self->input[idx]);
+}
+
+__global__ void testKernelCustomRsqrt(SqrtRsqTester *self) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < SqrtRsqTester::N)
+    self->output_custom[idx] = CUSTOM_RSQRT(self->input[idx]);
+}
+
+// -- kernels for just looking at asm listings ------------------------------
+
+__global__ void testKernelOneSqrtf(SqrtRsqTester *self) {
+  self->output_libf[0] = sqrtf(self->input[0]);
+}
+
+__global__ void testKernelOneCustomSqrt(SqrtRsqTester *self) {
+  self->output_custom[0] = CUSTOM_SQRT(self->input[0]);
+}
+
+__global__ void testKernelOneRsqrtf(SqrtRsqTester *self) {
+  self->output_libf[0] = rsqrtf(self->input[0]);
+}
+
+__global__ void testKernelOneCustomRsqrt(SqrtRsqTester *self) {
+  self->output_custom[0] = CUSTOM_RSQRT(self->input[0]);
+}
 
 bool verbose{};
 bool useColor{};
@@ -516,20 +516,16 @@ int main(int argc, char **argv) {
   dim3 gridSize(1);
 
   if (op == SqrtOp::Sqrt) {
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(SqrtRsqTester::testKernelSqrtf),
-                       gridSize, blockSize, 0, 0, tester);
+    testKernelSqrtf<<<gridSize, blockSize>>>(tester);
     CUDA_CHECK(cudaDeviceSynchronize());
 
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(SqrtRsqTester::testKernelCustomSqrt),
-                       gridSize, blockSize, 0, 0, tester);
+    testKernelCustomSqrt<<<gridSize, blockSize>>>(tester);
     CUDA_CHECK(cudaDeviceSynchronize());
   } else {
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(SqrtRsqTester::testKernelRsqrtf),
-                       gridSize, blockSize, 0, 0, tester);
+    testKernelRsqrtf<<<gridSize, blockSize>>>(tester);
     CUDA_CHECK(cudaDeviceSynchronize());
 
-    hipLaunchKernelGGL(HIP_KERNEL_NAME(SqrtRsqTester::testKernelCustomRsqrt),
-                       gridSize, blockSize, 0, 0, tester);
+    testKernelCustomRsqrt<<<gridSize, blockSize>>>(tester);
     CUDA_CHECK(cudaDeviceSynchronize());
   }
 

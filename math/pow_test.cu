@@ -1,20 +1,20 @@
 //
 // pow_test.cu
 //
-// Tests the builtin powf() / __powf() on AMD MI300 hardware, comparing
+// Tests the builtin powf() / __powf() on NVIDIA H100 hardware, comparing
 // results against std::pow() computed on the CPU.
 //
 // The intent is to:
-//   1. Establish ground truth via ROCm's powf() and __powf().
+//   1. Establish ground truth via CUDA's powf() and __powf().
 //   2. Provide a slot (PowTester::testKernelCustomPow) where a hand-coded
 //      inline-asm pow(a,b) can be dropped in later.
 //
 // pow(a,b) = 2^(b * log2(a))   for a > 0
 //
-// The obvious AMD GCN/CDNA sequence is, for a != 0, is:
-//   v_log_f32   tmp, a        // log2(a)
-//   v_mul_f32   tmp, b, tmp   // b * log2(a)
-//   v_exp_f32   tmp, tmp      // 2^(b * log2(a))
+// The obvious NVIDIA PTX sequence is, for a != 0, is:
+//   lg2.approx.f32  tmp, a        // log2(a)
+//   mul.f32         tmp, b, tmp   // b * log2(a)
+//   ex2.approx.f32  tmp, tmp      // 2^(b * log2(a))
 //
 #include <cuda_runtime.h>
 #include <getopt.h>
@@ -396,8 +396,8 @@ public:
 
   float input_a[N];
   float input_b[N];
-  float output_powf[N];      // ROCm powf()
-  float output_fast_powf[N]; // ROCm __powf() (lower precision)
+  float output_powf[N];      // CUDA powf()
+  float output_fast_powf[N]; // CUDA __powf() (lower precision)
   float output_custom[N];    // CUSTOM_POW() (hand-coded later)
 
   __host__ PowTester() {
@@ -416,45 +416,9 @@ public:
     fill(output_custom, N);
   }
 
-  // -- kernels ---------------------------------------------------------------
-
-  __global__ static void testKernelPowf(PowTester *self) {
-    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < N)
-      self->output_powf[idx] = powf(self->input_a[idx], self->input_b[idx]);
-  }
-
-  __global__ static void testKernelFastPowf(PowTester *self) {
-    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < N)
-      self->output_fast_powf[idx] =
-          __powf(self->input_a[idx], self->input_b[idx]);
-  }
-
-  __global__ static void testKernelCustomPow(PowTester *self) {
-    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < N)
-      self->output_custom[idx] =
-          CUSTOM_POW(self->input_a[idx], self->input_b[idx]);
-  }
-
-  // -- kernels for just looking at asm listings ------------------------------
-
-  __global__ static void testKernelOnePowf(PowTester *self) {
-    self->output_powf[0] = powf(self->input_a[0], self->input_b[0]);
-  }
-
-  __global__ static void testKernelOneFastPowf(PowTester *self) {
-    self->output_fast_powf[0] = __powf(self->input_a[0], self->input_b[0]);
-  }
-
-  __global__ static void testKernelOneCustomPow(PowTester *self) {
-    self->output_custom[0] = CUSTOM_POW(self->input_a[0], self->input_b[0]);
-  }
-
   // -- display ---------------------------------------------------------------
 
-  __host__ void displayResults(const float *RCOm_powf, const float *ROCm___powf,
+  __host__ void displayResults(const float *cuda_powf, const float *cuda___powf,
                                const float *ASM, const float *torchinductor,
                                const float *torcheager) const {
 
@@ -485,10 +449,10 @@ public:
     for (size_t i = 0; i < N; i++) {
       float a = input_a[i];
       float b = input_b[i];
-      float ref = std::powf(a, b);
+      float ref = powf(a, b);
 
-      OneResult32 v_powf(ref, RCOm_powf[i], true, verbose);
-      OneResult32 v__powf(ref, ROCm___powf[i], true, verbose);
+      OneResult32 v_powf(ref, cuda_powf[i], true, verbose);
+      OneResult32 v__powf(ref, cuda___powf[i], true, verbose);
       OneResult32 v_asm(ref, ASM[i], true, verbose);
       OneResult32 v_eager(ref, torcheager ? torcheager[i] : 0.0f,
                         torcheager != nullptr, verbose);
@@ -574,6 +538,42 @@ public:
   }
 };
 
+// -- kernels ---------------------------------------------------------------
+
+__global__ void testKernelPowf(PowTester *self) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < PowTester::N)
+    self->output_powf[idx] = powf(self->input_a[idx], self->input_b[idx]);
+}
+
+__global__ void testKernelFastPowf(PowTester *self) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < PowTester::N)
+    self->output_fast_powf[idx] =
+        __powf(self->input_a[idx], self->input_b[idx]);
+}
+
+__global__ void testKernelCustomPow(PowTester *self) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < PowTester::N)
+    self->output_custom[idx] =
+        CUSTOM_POW(self->input_a[idx], self->input_b[idx]);
+}
+
+// -- kernels for just looking at asm listings ------------------------------
+
+__global__ void testKernelOnePowf(PowTester *self) {
+  self->output_powf[0] = powf(self->input_a[0], self->input_b[0]);
+}
+
+__global__ void testKernelOneFastPowf(PowTester *self) {
+  self->output_fast_powf[0] = __powf(self->input_a[0], self->input_b[0]);
+}
+
+__global__ void testKernelOneCustomPow(PowTester *self) {
+  self->output_custom[0] = CUSTOM_POW(self->input_a[0], self->input_b[0]);
+}
+
 // ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
@@ -623,7 +623,7 @@ int main(int argc, char **argv) {
                    "\n\n"
                    "Run with:\n"
                    "  pip3 install torch --index-url "
-                   "https://download.pytorch.org/whl/rocm6.3\n"
+                   "https://download.pytorch.org/whl/cu126\n"
                    "  ./math/pow_test --dump-inputs ./powtest.in\n"
                    "  ../torchpow.py file ./powtest.in\n"
                    "  ./math/pow_test --torchinductor torchinductorpow.bin "
@@ -688,16 +688,13 @@ int main(int argc, char **argv) {
   dim3 blockSize(PowTester::N);
   dim3 gridSize(1);
 
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(PowTester::testKernelPowf), gridSize,
-                     blockSize, 0, 0, tester);
+  testKernelPowf<<<gridSize, blockSize>>>(tester);
   CUDA_CHECK(cudaDeviceSynchronize());
 
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(PowTester::testKernelFastPowf), gridSize,
-                     blockSize, 0, 0, tester);
+  testKernelFastPowf<<<gridSize, blockSize>>>(tester);
   CUDA_CHECK(cudaDeviceSynchronize());
 
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(PowTester::testKernelCustomPow), gridSize,
-                     blockSize, 0, 0, tester);
+  testKernelCustomPow<<<gridSize, blockSize>>>(tester);
   CUDA_CHECK(cudaDeviceSynchronize());
 
   tester->displayResults(tester->output_powf, tester->output_fast_powf,
