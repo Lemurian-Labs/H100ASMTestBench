@@ -836,7 +836,7 @@ int main(int argc, char **argv) {
   }
 
   TrigTester *tester;
-  CUDA_CHECK(hipMallocManaged(&tester, sizeof(TrigTester)));
+  CUDA_CHECK(cudaMallocManaged(&tester, sizeof(TrigTester)));
   new (tester) TrigTester();
   tester->reset();
 
@@ -845,40 +845,40 @@ int main(int argc, char **argv) {
 
   if (op == TrigOp::Cos) {
     hipLaunchKernelGGL(HIP_KERNEL_NAME(TrigTester::testKernelCosf), gridSize, blockSize, 0, 0, tester);
-    CUDA_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(cudaDeviceSynchronize());
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(TrigTester::testKernelFastCos), gridSize, blockSize, 0, 0, tester);
-    CUDA_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(cudaDeviceSynchronize());
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(TrigTester::testKernelCustomCosSimple), gridSize, blockSize, 0, 0, tester);
-    CUDA_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(cudaDeviceSynchronize());
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(TrigTester::testKernelCustomCosDPScale), gridSize, blockSize, 0, 0, tester);
-    CUDA_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(cudaDeviceSynchronize());
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(TrigTester::testKernelCustomCosDPReduce), gridSize, blockSize, 0, 0, tester);
-    CUDA_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(cudaDeviceSynchronize());
   } else {
     hipLaunchKernelGGL(HIP_KERNEL_NAME(TrigTester::testKernelSinf), gridSize, blockSize, 0, 0, tester);
-    CUDA_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(cudaDeviceSynchronize());
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(TrigTester::testKernelFastSin), gridSize, blockSize, 0, 0, tester);
-    CUDA_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(cudaDeviceSynchronize());
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(TrigTester::testKernelCustomSinSimple), gridSize, blockSize, 0, 0, tester);
-    CUDA_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(cudaDeviceSynchronize());
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(TrigTester::testKernelCustomSinDPScale), gridSize, blockSize, 0, 0, tester);
-    CUDA_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(cudaDeviceSynchronize());
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(TrigTester::testKernelCustomSinDPReduce), gridSize, blockSize, 0, 0, tester);
-    CUDA_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(cudaDeviceSynchronize());
   }
 
   tester->displayResults(op, torchinductorFile ? torchinductorOut.data() : nullptr,
                          torcheagerFile ? torcheagerOut.data() : nullptr);
 
-  CUDA_CHECK(hipFree(tester));
+  CUDA_CHECK(cudaFree(tester));
   return 0;
 }
 

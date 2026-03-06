@@ -1080,7 +1080,7 @@ int main(int argc, char **argv) {
   }
 
   DivTester *tester;
-  CUDA_CHECK(hipMallocManaged(&tester, sizeof(DivTester)));
+  CUDA_CHECK(cudaMallocManaged(&tester, sizeof(DivTester)));
   new (tester) DivTester();
   tester->reset();
 
@@ -1089,15 +1089,15 @@ int main(int argc, char **argv) {
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(DivTester::testKernelDiv), gridSize,
                      blockSize, 0, 0, tester);
-  CUDA_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(DivTester::testKernelFdividef), gridSize,
                      blockSize, 0, 0, tester);
-  CUDA_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(DivTester::testKernelCustomDiv), gridSize,
                      blockSize, 0, 0, tester);
-  CUDA_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
 
   if (compact) {
     tester->displayResults();
@@ -1107,7 +1107,7 @@ int main(int argc, char **argv) {
                            torcheagerFile ? torcheagerOut.data() : nullptr);
   }
 
-  CUDA_CHECK(hipFree(tester));
+  CUDA_CHECK(cudaFree(tester));
   return 0;
 }
 

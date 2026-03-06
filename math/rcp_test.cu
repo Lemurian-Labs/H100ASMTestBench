@@ -320,7 +320,7 @@ int main(int argc, char **argv) {
   }
 
   RcpTester *tester;
-  CUDA_CHECK(hipMallocManaged(&tester, sizeof(RcpTester)));
+  CUDA_CHECK(cudaMallocManaged(&tester, sizeof(RcpTester)));
 
   new (tester) RcpTester();
 
@@ -331,16 +331,16 @@ int main(int argc, char **argv) {
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(RcpTester::testKernelRcpAsm), gridSize,
                      blockSize, 0, 0, tester);
-  CUDA_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(RcpTester::testKernelROCmDiv), gridSize,
                      blockSize, 0, 0, tester);
-  CUDA_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
 
   tester->displayResults(torchinductorFile ? torchinductorOut.data() : nullptr,
                          torcheagerFile ? torcheagerOut.data() : nullptr);
 
-  CUDA_CHECK(hipFree(tester));
+  CUDA_CHECK(cudaFree(tester));
   return 0;
 }
 

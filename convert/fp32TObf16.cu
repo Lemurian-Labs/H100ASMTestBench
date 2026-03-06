@@ -14,7 +14,7 @@
 #include <cstring>
 #include <format>
 #include <getopt.h>
-#include <hip/hip_bf16.h>
+#include <cuda_bf16.h>
 #include <cuda_runtime.h>
 #include <iostream>
 #include <limits>
@@ -317,7 +317,7 @@ int main(int argc, char **argv) {
   }
 
   Fp32ToBf16Tester *tester;
-  CUDA_CHECK(hipMallocManaged(&tester, sizeof(Fp32ToBf16Tester)));
+  CUDA_CHECK(cudaMallocManaged(&tester, sizeof(Fp32ToBf16Tester)));
 
   new (tester) Fp32ToBf16Tester();
 
@@ -328,19 +328,19 @@ int main(int argc, char **argv) {
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(Fp32ToBf16Tester::testKernelRef), gridSize,
                      blockSize, 0, 0, tester);
-  CUDA_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(Fp32ToBf16Tester::testKernelTrunc),
                      gridSize, blockSize, 0, 0, tester);
-  CUDA_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(Fp32ToBf16Tester::testKernelRound),
                      gridSize, blockSize, 0, 0, tester);
-  CUDA_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
 
   tester->displayResults();
 
-  CUDA_CHECK(hipFree(tester));
+  CUDA_CHECK(cudaFree(tester));
   return 0;
 }
 

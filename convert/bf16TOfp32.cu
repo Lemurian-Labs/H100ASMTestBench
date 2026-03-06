@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <cstring>
 #include <format>
-#include <hip/hip_bf16.h>
+#include <cuda_bf16.h>
 #include <cuda_runtime.h>
 #include <iostream>
 #include <limits>
@@ -223,7 +223,7 @@ Bf16ToFp32Converter::displayAndCheckResults(const char *how) const {
 int main() {
   // Allocate converter object in managed memory
   Bf16ToFp32Converter *converter;
-  CUDA_CHECK(hipMallocManaged(&converter, sizeof(Bf16ToFp32Converter)));
+  CUDA_CHECK(cudaMallocManaged(&converter, sizeof(Bf16ToFp32Converter)));
 
   new (converter) Bf16ToFp32Converter();
 
@@ -234,17 +234,17 @@ int main() {
   converter->reset();
   hipLaunchKernelGGL(HIP_KERNEL_NAME(Bf16ToFp32Converter::convertKernel),
                      gridSize, blockSize, 0, 0, converter);
-  CUDA_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
   converter->displayAndCheckResults("__bfloat162float");
 
   converter->reset();
   hipLaunchKernelGGL(HIP_KERNEL_NAME(Bf16ToFp32Converter::convertKernelShift),
                      gridSize, blockSize, 0, 0, converter);
-  CUDA_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
   converter->displayAndCheckResults("bf16TOfp32Shift");
 
   // Cleanup
-  CUDA_CHECK(hipFree(converter));
+  CUDA_CHECK(cudaFree(converter));
 
   return 0;
 }

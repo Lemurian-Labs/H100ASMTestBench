@@ -385,7 +385,7 @@ int main(int argc, char **argv) {
   }
 
   Exp2Tester *tester;
-  CUDA_CHECK(hipMallocManaged(&tester, sizeof(Exp2Tester)));
+  CUDA_CHECK(cudaMallocManaged(&tester, sizeof(Exp2Tester)));
 
   new (tester) Exp2Tester();
 
@@ -396,16 +396,16 @@ int main(int argc, char **argv) {
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(Exp2Tester::testKernelExp2Asm), gridSize,
                      blockSize, 0, 0, tester);
-  CUDA_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(Exp2Tester::testKernelROCmExp2), gridSize,
                      blockSize, 0, 0, tester);
-  CUDA_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
 
   tester->displayResults(torchinductorFile ? torchinductorOut.data() : nullptr,
                          torcheagerFile ? torcheagerOut.data() : nullptr);
 
-  CUDA_CHECK(hipFree(tester));
+  CUDA_CHECK(cudaFree(tester));
   return 0;
 }
 

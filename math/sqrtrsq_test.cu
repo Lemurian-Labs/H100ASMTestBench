@@ -739,7 +739,7 @@ int main(int argc, char **argv) {
   }
 
   SqrtRsqTester *tester;
-  CUDA_CHECK(hipMallocManaged(&tester, sizeof(SqrtRsqTester)));
+  CUDA_CHECK(cudaMallocManaged(&tester, sizeof(SqrtRsqTester)));
   new (tester) SqrtRsqTester();
   tester->reset();
 
@@ -749,26 +749,26 @@ int main(int argc, char **argv) {
   if (op == SqrtOp::Sqrt) {
     hipLaunchKernelGGL(HIP_KERNEL_NAME(SqrtRsqTester::testKernelSqrtf),
                        gridSize, blockSize, 0, 0, tester);
-    CUDA_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(cudaDeviceSynchronize());
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(SqrtRsqTester::testKernelCustomSqrt),
                        gridSize, blockSize, 0, 0, tester);
-    CUDA_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(cudaDeviceSynchronize());
   } else {
     hipLaunchKernelGGL(HIP_KERNEL_NAME(SqrtRsqTester::testKernelRsqrtf),
                        gridSize, blockSize, 0, 0, tester);
-    CUDA_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(cudaDeviceSynchronize());
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(SqrtRsqTester::testKernelCustomRsqrt),
                        gridSize, blockSize, 0, 0, tester);
-    CUDA_CHECK(hipDeviceSynchronize());
+    CUDA_CHECK(cudaDeviceSynchronize());
   }
 
   tester->displayResults(op,
                          torchinductorFile ? torchinductorOut.data() : nullptr,
                          torcheagerFile ? torcheagerOut.data() : nullptr);
 
-  CUDA_CHECK(hipFree(tester));
+  CUDA_CHECK(cudaFree(tester));
   return 0;
 }
 

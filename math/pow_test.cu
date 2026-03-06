@@ -1148,7 +1148,7 @@ int main(int argc, char **argv) {
   }
 
   PowTester *tester;
-  CUDA_CHECK(hipMallocManaged(&tester, sizeof(PowTester)));
+  CUDA_CHECK(cudaMallocManaged(&tester, sizeof(PowTester)));
   new (tester) PowTester();
   tester->reset();
 
@@ -1157,22 +1157,22 @@ int main(int argc, char **argv) {
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(PowTester::testKernelPowf), gridSize,
                      blockSize, 0, 0, tester);
-  CUDA_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(PowTester::testKernelFastPowf), gridSize,
                      blockSize, 0, 0, tester);
-  CUDA_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
 
   hipLaunchKernelGGL(HIP_KERNEL_NAME(PowTester::testKernelCustomPow), gridSize,
                      blockSize, 0, 0, tester);
-  CUDA_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
 
   tester->displayResults(tester->output_powf, tester->output_fast_powf,
                          tester->output_custom,
                          torchinductorFile ? torchinductorOut.data() : nullptr,
                          torcheagerFile ? torcheagerOut.data() : nullptr);
 
-  CUDA_CHECK(hipFree(tester));
+  CUDA_CHECK(cudaFree(tester));
   return 0;
 }
 

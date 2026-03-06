@@ -4,7 +4,7 @@
 #include <cstring>
 #include <format>
 #include <functional>
-#include <hip/hip_bf16.h>
+#include <cuda_bf16.h>
 #include <cuda_runtime.h>
 #include <iostream>
 #include <limits>
@@ -142,7 +142,7 @@ void __host__ Comparator::displayAndCheckResults(
 
 int main() {
   Comparator *converter;
-  CUDA_CHECK(hipMallocManaged(&converter, sizeof(Comparator)));
+  CUDA_CHECK(cudaMallocManaged(&converter, sizeof(Comparator)));
   new (converter) Comparator();
 
   // 15 threads, one per adjacent pair
@@ -154,42 +154,36 @@ int main() {
   auto eq = [](float a, float b) { return a == b ? 1 : 0; };
 
   converter->reset();
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(Comparator::convertKernelLessC),
-                     gridSize, blockSize, 0, 0, converter);
-  CUDA_CHECK(hipDeviceSynchronize());
+  Comparator::convertKernelLessC<<<gridSize, blockSize>>>(converter);
+  CUDA_CHECK(cudaDeviceSynchronize());
   converter->displayAndCheckResults("[C++]", "<", lt);
 
   converter->reset();
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(Comparator::convertKernelGreaterC),
-                     gridSize, blockSize, 0, 0, converter);
-  CUDA_CHECK(hipDeviceSynchronize());
+  Comparator::convertKernelGreaterC<<<gridSize, blockSize>>>(converter);
+  CUDA_CHECK(cudaDeviceSynchronize());
   converter->displayAndCheckResults("[C++]", ">", gt);
 
   converter->reset();
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(Comparator::convertKernelEqualC),
-                     gridSize, blockSize, 0, 0, converter);
-  CUDA_CHECK(hipDeviceSynchronize());
+  Comparator::convertKernelEqualC<<<gridSize, blockSize>>>(converter);
+  CUDA_CHECK(cudaDeviceSynchronize());
   converter->displayAndCheckResults("[C++]", "==", eq);
 
   converter->reset();
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(Comparator::convertKernelLessASM),
-                     gridSize, blockSize, 0, 0, converter);
-  CUDA_CHECK(hipDeviceSynchronize());
+  Comparator::convertKernelLessASM<<<gridSize, blockSize>>>(converter);
+  CUDA_CHECK(cudaDeviceSynchronize());
   converter->displayAndCheckResults("[ASM]", "<", lt);
 
   converter->reset();
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(Comparator::convertKernelGreaterASM),
-                     gridSize, blockSize, 0, 0, converter);
-  CUDA_CHECK(hipDeviceSynchronize());
+  Comparator::convertKernelGreaterASM<<<gridSize, blockSize>>>(converter);
+  CUDA_CHECK(cudaDeviceSynchronize());
   converter->displayAndCheckResults("[ASM]", ">", gt);
 
   converter->reset();
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(Comparator::convertKernelEqualASM),
-                     gridSize, blockSize, 0, 0, converter);
-  CUDA_CHECK(hipDeviceSynchronize());
+  Comparator::convertKernelEqualASM<<<gridSize, blockSize>>>(converter);
+  CUDA_CHECK(cudaDeviceSynchronize());
   converter->displayAndCheckResults("[ASM]", "==", eq);
 
-  CUDA_CHECK(hipFree(converter));
+  CUDA_CHECK(cudaFree(converter));
   return 0;
 }
 

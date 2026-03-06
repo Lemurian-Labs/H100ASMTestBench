@@ -559,7 +559,7 @@ int main(int argc, char **argv) {
 
   // Allocate tester object in managed memory
   ExpTester *tester;
-  CUDA_CHECK(hipMallocManaged(&tester, sizeof(ExpTester)));
+  CUDA_CHECK(cudaMallocManaged(&tester, sizeof(ExpTester)));
 
   new (tester) ExpTester();
 
@@ -572,24 +572,24 @@ int main(int argc, char **argv) {
   // Test CUSTOM_EXPF (e^x via mul+exp)
   hipLaunchKernelGGL(HIP_KERNEL_NAME(ExpTester::testKernelExp), gridSize,
                      blockSize, 0, 0, tester);
-  CUDA_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
 
   // Test ROCm expf()
   hipLaunchKernelGGL(HIP_KERNEL_NAME(ExpTester::testKernelROCmExp), gridSize,
                      blockSize, 0, 0, tester);
-  CUDA_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
 
   // Test ROCm __expf()
   hipLaunchKernelGGL(HIP_KERNEL_NAME(ExpTester::testKernelROCmFExp), gridSize,
                      blockSize, 0, 0, tester);
-  CUDA_CHECK(hipDeviceSynchronize());
+  CUDA_CHECK(cudaDeviceSynchronize());
 
   // Display results (computes CPU reference inline)
   tester->displayResults(torchinductorFile ? torchinductorOut.data() : nullptr,
                          torcheagerFile ? torcheagerOut.data() : nullptr);
 
   // Cleanup
-  CUDA_CHECK(hipFree(tester));
+  CUDA_CHECK(cudaFree(tester));
 
   return 0;
 }
