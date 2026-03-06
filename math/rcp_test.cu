@@ -21,18 +21,13 @@
 #include "cuda_check.hpp"
 
 // clang-format off
-inline float __device__ rcp_f32_inplace(float x) {
-  float result;
-  __asm__ __volatile__(
-      "v_rcp_f32_e32 %0, %1 ;; 1/x\n\t"
-      : "=v"(result) // %0
-      : "v"(x)       // %1
-      );
+inline float __device__ rcp_f32(float x) {
+  float result = (1.0f / x); // placeholder for later inline ASM version.
   return result;
 }
 // clang-format on
 
-#define CUSTOM_RCPF rcp_f32_inplace
+#define CUSTOM_RCPF rcp_f32
 
 struct RcpCase {
   float x;
