@@ -24,41 +24,19 @@
 #include "hipcheck.hpp"
 
 // clang-format off
-inline __hip_bfloat16 __device__ fp32TObf16Rounding(float input) {
-  uint32_t input_bits;
-  uint32_t result;
-  uint32_t round_bit;
-
-  __builtin_memcpy(&input_bits, &input, sizeof(float));
-
-  __asm__ __volatile__(
-      "v_bfe_u32 %0, %2, 16, 1\n\t"      // Extract bit 16 for rounding into round_bit
-      "v_add_u32_e32 %0, %2, %0\n\t"     // Add bit 16 to original
-      "v_add_u32_e32 %1, 0x7fff, %0\n\t" // Add 0x7fff for round-to-nearest
-      "v_lshrrev_b32 %1, 16, %1\n\t"     // Shift right 16 bits to get BF16
-      : "=&v"(round_bit), // %0
-        "=v"(result) // %1
-      : "v"(input_bits) // %2
-      );
-
-  uint16_t bf16_bits = static_cast<uint16_t>(result);
-  return *reinterpret_cast<__hip_bfloat16 *>(&bf16_bits);
+inline __nv_bfloat16 __device__ fp32TObf16Rounding(float input) {
+  return __float2bfloat16(float); // future: inline ASM version.
 }
 
-inline __hip_bfloat16 __device__ fp32TObf16Truncation(float input) {
+inline __nv_bfloat16 __device__ fp32TObf16Truncation(float input) {
   uint32_t input_bits;
   uint32_t result;
 
   __builtin_memcpy(&input_bits, &input, sizeof(float));
-
-  __asm__ __volatile__(
-      "v_lshrrev_b32 %0, 16, %1\n\t"
-      : "=v"(result) // %0
-      : "v"(input_bits) // %1
-      );
+  result >>= 16;
 
   uint16_t bf16_bits = static_cast<uint16_t>(result);
-  return *reinterpret_cast<__hip_bfloat16 *>(&bf16_bits);
+  return *reinterpret_cast<__nv_bfloat16 *>(&bf16_bits);
 }
 // clang-format on
 
@@ -113,9 +91,9 @@ public:
   static constexpr size_t N = 24;
 
   float input[N];
-  __hip_bfloat16 output_ref[N];
-  __hip_bfloat16 output_trunc[N];
-  __hip_bfloat16 output_round[N];
+  __nv_bfloat16 output_ref[N];
+  __nv_bfloat16 output_trunc[N];
+  __nv_bfloat16 output_round[N];
 
   __host__ Fp32ToBf16Tester() {
     for (size_t i = 0; i < N; i++) {
@@ -177,7 +155,7 @@ static std::string fp32Hex(float v) {
   return std::format("0x{:08x}", bits);
 }
 
-static std::string bf16Hex(__hip_bfloat16 v) {
+static std::string bf16Hex(__nv_bfloat16 v) {
   uint16_t bits;
   std::memcpy(&bits, &v, sizeof(bits));
   return std::format("0x{:04x}", bits);

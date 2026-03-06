@@ -10,18 +10,15 @@
 
 // BF16 to FP32 conversion using shift (zero-extension)
 // This is the canonical method - BF16 is just FP32 with lower 16 bits zeroed
-inline float __device__ bf16TOfp32Shift(__hip_bfloat16 input) {
+inline float __device__ bf16TOfp32Shift(__nv_bfloat16 input) {
   uint16_t bf16_bits;
   uint32_t result;
 
   // Copy bfloat16 to uint16_t
-  __builtin_memcpy(&bf16_bits, &input, sizeof(__hip_bfloat16));
+  __builtin_memcpy(&bf16_bits, &input, sizeof(__nv_bfloat16));
 
-  __asm__ __volatile__(
-      "v_lshlrev_b32 %0, 16, %1\n\t" // Shift left 16 bits to get FP32
-      : "=v"(result)                 // Output: %0, vector register
-      : "v"(bf16_bits)               // Input: %1, vector register (uint16_t promoted to uint32_t)
-  );
+  result = bf16_bits;
+  result <<= 16;
 
   float fp32_result;
   __builtin_memcpy(&fp32_result, &result, sizeof(float));
@@ -31,12 +28,12 @@ inline float __device__ bf16TOfp32Shift(__hip_bfloat16 input) {
 class Bf16ToFp32Converter {
 public:
   static constexpr size_t N = 24;
-  __hip_bfloat16 input[N];
+  __nv_bfloat16 input[N];
   float output[N];
 
   // Helper to create a bfloat16 from raw bits
-  static inline __hip_bfloat16 __host__ bfloat16FromBits(uint16_t bits) {
-    __hip_bfloat16 bf;
+  static inline __nv_bfloat16 __host__ bfloat16FromBits(uint16_t bits) {
+    __nv_bfloat16 bf;
     std::memcpy(&bf, &bits, sizeof(bf));
     return bf;
   }
