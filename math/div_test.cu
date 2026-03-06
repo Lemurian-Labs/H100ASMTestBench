@@ -1,17 +1,12 @@
 //
 // div_test.cu
 //
-// Tests division using v_rcp_f32 + v_mul_f32 on AMD MI300 hardware,
+// Tests division using rcp + mul on NVIDIA H100 hardware,
 // comparing results against standard division (/) computed on the CPU.
 //
 // The intent is to:
-//   1. Establish ground truth via ROCm's operator/ and fdividef().
-//   2. Test hand-coded inline-asm division using v_rcp_f32 + v_mul_f32.
-//
-// Division implementation: a / b = a * (1/b)
-//   v_rcp_f32:  computes 1/b (reciprocal)
-//   v_nop:      pipeline hazard avoidance
-//   v_mul_f32:  multiply a * (1/b)
+//   1. Establish ground truth via CUDA's operator/ and fdividef().
+//   2. Test hand-coded inline-asm division (placeholder for PTX).
 //
 #include <cmath>
 #include <cstdint>
@@ -26,7 +21,7 @@
 
 #include "OneResult32.hpp"
 #include "colors.hpp"
-#include "hipcheck.hpp"
+#include "cuda_check.hpp"
 #include "readbinary.hpp"
 
 // ---------------------------------------------------------------------------
@@ -554,8 +549,8 @@ public:
 
   float input_a[N];
   float input_b[N];
-  float output_div[N];        // ROCm operator/
-  float output_fdividef[N];   // ROCm fdividef() (fast approx)
+  float output_div[N];        // CUDA operator/
+  float output_fdividef[N];   // CUDA fdividef() (fast approx)
   float output_custom_div[N]; // CUSTOM_DIV() -- placeholder for later ASM version.
 
   __host__ DivTester() {
@@ -571,42 +566,6 @@ public:
     std::memset(output_custom_div, 0xff, sizeof(output_custom_div));
   }
 
-  // -- kernels ---------------------------------------------------------------
-
-  __global__ static void testKernelDiv(DivTester *self) {
-    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < N)
-      self->output_div[idx] = self->input_a[idx] / self->input_b[idx];
-  }
-
-  __global__ static void testKernelFdividef(DivTester *self) {
-    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < N)
-      self->output_fdividef[idx] =
-          fdividef(self->input_a[idx], self->input_b[idx]);
-  }
-
-  __global__ static void testKernelCustomDiv(DivTester *self) {
-    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < N)
-      self->output_custom_div[idx] =
-          CUSTOM_DIV(self->input_a[idx], self->input_b[idx]);
-  }
-
-  // -- kernels for just looking at asm listings ------------------------------
-
-  __global__ static void testKernelOneDiv(DivTester *self) {
-    self->output_div[0] = self->input_a[0] / self->input_b[0];
-  }
-
-  __global__ static void testKernelOneFdividef(DivTester *self) {
-    self->output_fdividef[0] = fdividef(self->input_a[0], self->input_b[0]);
-  }
-
-  __global__ static void testKernelOneCustomDiv(DivTester *self) {
-    self->output_custom_div[0] = CUSTOM_DIV(self->input_a[0], self->input_b[0]);
-  }
-
   // -- display ---------------------------------------------------------------
 
   void __host__ displayResults(const float *torchinductor,
@@ -614,6 +573,42 @@ public:
 
   void __host__ displayResults() const;
 };
+
+// -- kernels ---------------------------------------------------------------
+
+__global__ void testKernelDiv(DivTester *self) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < DivTester::N)
+    self->output_div[idx] = self->input_a[idx] / self->input_b[idx];
+}
+
+__global__ void testKernelFdividef(DivTester *self) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < DivTester::N)
+    self->output_fdividef[idx] =
+        fdividef(self->input_a[idx], self->input_b[idx]);
+}
+
+__global__ void testKernelCustomDiv(DivTester *self) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < DivTester::N)
+    self->output_custom_div[idx] =
+        CUSTOM_DIV(self->input_a[idx], self->input_b[idx]);
+}
+
+// -- kernels for just looking at asm listings ------------------------------
+
+__global__ void testKernelOneDiv(DivTester *self) {
+  self->output_div[0] = self->input_a[0] / self->input_b[0];
+}
+
+__global__ void testKernelOneFdividef(DivTester *self) {
+  self->output_fdividef[0] = fdividef(self->input_a[0], self->input_b[0]);
+}
+
+__global__ void testKernelOneCustomDiv(DivTester *self) {
+  self->output_custom_div[0] = CUSTOM_DIV(self->input_a[0], self->input_b[0]);
+}
 
 bool verbose{};
 bool compact{};
@@ -932,16 +927,13 @@ int main(int argc, char **argv) {
   dim3 blockSize(DivTester::N);
   dim3 gridSize(1);
 
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(DivTester::testKernelDiv), gridSize,
-                     blockSize, 0, 0, tester);
+  testKernelDiv<<<gridSize, blockSize>>>(tester);
   CUDA_CHECK(cudaDeviceSynchronize());
 
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(DivTester::testKernelFdividef), gridSize,
-                     blockSize, 0, 0, tester);
+  testKernelFdividef<<<gridSize, blockSize>>>(tester);
   CUDA_CHECK(cudaDeviceSynchronize());
 
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(DivTester::testKernelCustomDiv), gridSize,
-                     blockSize, 0, 0, tester);
+  testKernelCustomDiv<<<gridSize, blockSize>>>(tester);
   CUDA_CHECK(cudaDeviceSynchronize());
 
   if (compact) {
