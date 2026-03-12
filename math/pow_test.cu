@@ -529,13 +529,14 @@ public:
       float a = input_a[i];
       float b = input_b[i];
       float ref = powf(a, b);
+      float cuda_ref = cuda_powf[i];
 
       OneResult32 v_powf(ref, cuda_powf[i], true, verbose);
-      OneResult32 v__powf(ref, cuda___powf[i], true, verbose);
-      OneResult32 v_asm(ref, ASM[i], true, verbose);
-      OneResult32 v_eager(ref, torcheager ? torcheager[i] : 0.0f,
+      OneResult32 v__powf(cuda_ref, cuda___powf[i], true, verbose);
+      OneResult32 v_asm(cuda_ref, ASM[i], true, verbose);
+      OneResult32 v_eager(cuda_ref, torcheager ? torcheager[i] : 0.0f,
                         torcheager != nullptr, verbose);
-      OneResult32 v_inductor(ref, torchinductor ? torchinductor[i] : 0.0f,
+      OneResult32 v_inductor(cuda_ref, torchinductor ? torchinductor[i] : 0.0f,
                            torchinductor != nullptr, verbose);
 
       uint32_t rbits;
