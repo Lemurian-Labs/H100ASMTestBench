@@ -370,6 +370,15 @@ bool csvOutput{};
   if (i < UnaryTester::N) self->out_custom[i] = custom_##func(self->input[i]); \
 }
 
+// One-value kernels for asm/PTX inspection.
+#define KERNEL_ONE_CUDA(func) __global__ void testOne##func##Cuda(UnaryTester *self) { \
+  self->out_cuda[0] = func(self->input[0]); \
+}
+
+#define KERNEL_ONE_CUSTOM(func) __global__ void testOne##func##Custom(UnaryTester *self) { \
+  self->out_custom[0] = custom_##func(self->input[0]); \
+}
+
 KERNEL_CUDA(floorf)
 KERNEL_CUDA(truncf)
 KERNEL_CUDA(ceilf)
@@ -405,6 +414,41 @@ KERNEL_CUDA(logbf)
 KERNEL_CUDA(lgammaf)
 KERNEL_CUDA(tgammaf)
 
+KERNEL_ONE_CUDA(floorf)
+KERNEL_ONE_CUDA(truncf)
+KERNEL_ONE_CUDA(ceilf)
+KERNEL_ONE_CUDA(fabsf)
+KERNEL_ONE_CUDA(sinf)
+KERNEL_ONE_CUDA(cosf)
+KERNEL_ONE_CUDA(exp2f)
+KERNEL_ONE_CUDA(expf)
+KERNEL_ONE_CUDA(sqrtf)
+KERNEL_ONE_CUDA(rsqrtf)
+KERNEL_ONE_CUDA(log2f)
+KERNEL_ONE_CUDA(logf)
+KERNEL_ONE_CUDA(log10f)
+KERNEL_ONE_CUDA(erff)
+KERNEL_ONE_CUDA(erfcf)
+KERNEL_ONE_CUDA(tanf)
+KERNEL_ONE_CUDA(tanhf)
+KERNEL_ONE_CUDA(cbrtf)
+KERNEL_ONE_CUDA(expm1f)
+KERNEL_ONE_CUDA(log1pf)
+KERNEL_ONE_CUDA(acoshf)
+KERNEL_ONE_CUDA(asinhf)
+KERNEL_ONE_CUDA(atanhf)
+KERNEL_ONE_CUDA(acosf)
+KERNEL_ONE_CUDA(asinf)
+KERNEL_ONE_CUDA(atanf)
+KERNEL_ONE_CUDA(roundf)
+KERNEL_ONE_CUDA(nearbyintf)
+KERNEL_ONE_CUDA(sinhf)
+KERNEL_ONE_CUDA(coshf)
+KERNEL_ONE_CUDA(exp10f)
+KERNEL_ONE_CUDA(logbf)
+KERNEL_ONE_CUDA(lgammaf)
+KERNEL_ONE_CUDA(tgammaf)
+
 __global__ void testRcpCuda(UnaryTester *self) {
   size_t i = blockIdx.x * blockDim.x + threadIdx.x;
   if (i < UnaryTester::N) self->out_cuda[i] = 1.0f / self->input[i];
@@ -423,6 +467,22 @@ __global__ void testCospifCuda(UnaryTester *self) {
 __global__ void testTanpifCuda(UnaryTester *self) {
   size_t i = blockIdx.x * blockDim.x + threadIdx.x;
   if (i < UnaryTester::N) self->out_cuda[i] = tanf(3.14159265358979323846f * self->input[i]);
+}
+
+__global__ void testOneRcpCuda(UnaryTester *self) {
+  self->out_cuda[0] = 1.0f / self->input[0];
+}
+
+__global__ void testOneSinpifCuda(UnaryTester *self) {
+  self->out_cuda[0] = sinpif(self->input[0]);
+}
+
+__global__ void testOneCospifCuda(UnaryTester *self) {
+  self->out_cuda[0] = cospif(self->input[0]);
+}
+
+__global__ void testOneTanpifCuda(UnaryTester *self) {
+  self->out_cuda[0] = tanf(3.14159265358979323846f * self->input[0]);
 }
 
 // Custom kernels
@@ -464,9 +524,51 @@ KERNEL_CUSTOM(sinpif)
 KERNEL_CUSTOM(cospif)
 KERNEL_CUSTOM(tanpif)
 
+KERNEL_ONE_CUSTOM(floorf)
+KERNEL_ONE_CUSTOM(truncf)
+KERNEL_ONE_CUSTOM(ceilf)
+KERNEL_ONE_CUSTOM(absf)
+KERNEL_ONE_CUSTOM(sinf)
+KERNEL_ONE_CUSTOM(cosf)
+KERNEL_ONE_CUSTOM(exp2f)
+KERNEL_ONE_CUSTOM(expf)
+KERNEL_ONE_CUSTOM(sqrtf)
+KERNEL_ONE_CUSTOM(rsqrtf)
+KERNEL_ONE_CUSTOM(log2f)
+KERNEL_ONE_CUSTOM(logf)
+KERNEL_ONE_CUSTOM(log10f)
+KERNEL_ONE_CUSTOM(erff)
+KERNEL_ONE_CUSTOM(erfcf)
+KERNEL_ONE_CUSTOM(tanf)
+KERNEL_ONE_CUSTOM(tanhf)
+KERNEL_ONE_CUSTOM(cbrtf)
+KERNEL_ONE_CUSTOM(expm1f)
+KERNEL_ONE_CUSTOM(log1pf)
+KERNEL_ONE_CUSTOM(acoshf)
+KERNEL_ONE_CUSTOM(asinhf)
+KERNEL_ONE_CUSTOM(atanhf)
+KERNEL_ONE_CUSTOM(acosf)
+KERNEL_ONE_CUSTOM(asinf)
+KERNEL_ONE_CUSTOM(atanf)
+KERNEL_ONE_CUSTOM(roundf)
+KERNEL_ONE_CUSTOM(nearbyintf)
+KERNEL_ONE_CUSTOM(sinhf)
+KERNEL_ONE_CUSTOM(coshf)
+KERNEL_ONE_CUSTOM(exp10f)
+KERNEL_ONE_CUSTOM(logbf)
+KERNEL_ONE_CUSTOM(lgammaf)
+KERNEL_ONE_CUSTOM(tgammaf)
+KERNEL_ONE_CUSTOM(sinpif)
+KERNEL_ONE_CUSTOM(cospif)
+KERNEL_ONE_CUSTOM(tanpif)
+
 __global__ void testRcpCustom(UnaryTester *self) {
   size_t i = blockIdx.x * blockDim.x + threadIdx.x;
   if (i < UnaryTester::N) self->out_custom[i] = custom_rcp(self->input[i]);
+}
+
+__global__ void testOneRcpCustom(UnaryTester *self) {
+  self->out_custom[0] = custom_rcp(self->input[0]);
 }
 
 // ---------------------------------------------------------------------------

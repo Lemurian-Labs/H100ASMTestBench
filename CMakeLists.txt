@@ -20,7 +20,7 @@ function(add_cuda_executable name)
   set_target_properties(${name} PROPERTIES OUTPUT_NAME ${name})
 endfunction()
 
-add_subdirectory(compare)
+add_subdirectory(predicateops)
 add_subdirectory(convert)
 add_subdirectory(demo)
 add_subdirectory(complexops)
