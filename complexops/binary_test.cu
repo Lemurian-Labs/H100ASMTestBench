@@ -2,10 +2,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <cuda_runtime.h>
 #include <format>
 #include <fstream>
 #include <getopt.h>
-#include <cuda_runtime.h>
 #include <iostream>
 #include <limits>
 #include <numbers>
@@ -15,8 +15,8 @@
 #include "OneResult32.hpp"
 #include "colors.hpp"
 #include "cuda_check.hpp"
-#include "readbinary.hpp"
 #include "custom_asm.hpp"
+#include "readbinary.hpp"
 
 struct BinaryCase {
   float a;
@@ -742,245 +742,244 @@ public:
     std::memset(out_cuda, 0xff, sizeof(out_cuda));
     std::memset(out_custom, 0xff, sizeof(out_custom));
   }
-
 };
 
 __global__ void testDimCuda(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_cuda[i] = fmaxf(self->input_a[i] - self->input_b[i], 0.0f);
-  }
-  __global__ void testDimCustom(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_custom[i] = custom_dimf(self->input_a[i], self->input_b[i]);
-  }
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_cuda[i] = fmaxf(self->input_a[i] - self->input_b[i], 0.0f);
+}
+__global__ void testDimCustom(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_custom[i] = custom_dimf(self->input_a[i], self->input_b[i]);
+}
 
-  __global__ void testDivCuda(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_cuda[i] = self->input_a[i] / self->input_b[i];
-  }
-  __global__ void testDivCustom(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_custom[i] = custom_fdividef(self->input_a[i], self->input_b[i]);
-  }
+__global__ void testDivCuda(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_cuda[i] = self->input_a[i] / self->input_b[i];
+}
+__global__ void testDivCustom(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_custom[i] = custom_fdividef(self->input_a[i], self->input_b[i]);
+}
 
-  __global__ void testPowCuda(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_cuda[i] = powf(self->input_a[i], self->input_b[i]);
-  }
-  __global__ void testPowCustom(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_custom[i] = custom_powf(self->input_a[i], self->input_b[i]);
-  }
+__global__ void testPowCuda(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_cuda[i] = powf(self->input_a[i], self->input_b[i]);
+}
+__global__ void testPowCustom(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_custom[i] = custom_powf(self->input_a[i], self->input_b[i]);
+}
 
-  __global__ void testFldivCuda(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_cuda[i] = floorf(self->input_a[i] / self->input_b[i]);
-  }
-  __global__ void testFldivCustom(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_custom[i] = custom_fldivf(self->input_a[i], self->input_b[i]);
-  }
+__global__ void testFldivCuda(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_cuda[i] = floorf(self->input_a[i] / self->input_b[i]);
+}
+__global__ void testFldivCustom(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_custom[i] = custom_fldivf(self->input_a[i], self->input_b[i]);
+}
 
-  __global__ void testCldivCuda(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_cuda[i] = -floorf((-self->input_a[i]) / self->input_b[i]);
-  }
-  __global__ void testCldivCustom(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_custom[i] = custom_cldivf(self->input_a[i], self->input_b[i]);
-  }
+__global__ void testCldivCuda(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_cuda[i] = -floorf((-self->input_a[i]) / self->input_b[i]);
+}
+__global__ void testCldivCustom(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_custom[i] = custom_cldivf(self->input_a[i], self->input_b[i]);
+}
 
-  __global__ void testRootCuda(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_cuda[i] = powf(self->input_a[i], 1.0f / self->input_b[i]);
-  }
-  __global__ void testRootCustom(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_custom[i] = custom_rootf(self->input_a[i], self->input_b[i]);
-  }
+__global__ void testRootCuda(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_cuda[i] = powf(self->input_a[i], 1.0f / self->input_b[i]);
+}
+__global__ void testRootCustom(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_custom[i] = custom_rootf(self->input_a[i], self->input_b[i]);
+}
 
-  __global__ void testAtan2Cuda(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_cuda[i] = atan2f(self->input_a[i], self->input_b[i]);
-  }
-  __global__ void testAtan2Custom(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_custom[i] = custom_atan2f(self->input_a[i], self->input_b[i]);
-  }
+__global__ void testAtan2Cuda(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_cuda[i] = atan2f(self->input_a[i], self->input_b[i]);
+}
+__global__ void testAtan2Custom(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_custom[i] = custom_atan2f(self->input_a[i], self->input_b[i]);
+}
 
-  __global__ void testCopysignCuda(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_cuda[i] = copysignf(self->input_a[i], self->input_b[i]);
-  }
-  __global__ void testCopysignCustom(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_custom[i] = custom_copysignf(self->input_a[i], self->input_b[i]);
-  }
+__global__ void testCopysignCuda(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_cuda[i] = copysignf(self->input_a[i], self->input_b[i]);
+}
+__global__ void testCopysignCustom(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_custom[i] = custom_copysignf(self->input_a[i], self->input_b[i]);
+}
 
-  __global__ void testFmaxCuda(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_cuda[i] = fmaxf(self->input_a[i], self->input_b[i]);
-  }
-  __global__ void testFmaxCustom(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_custom[i] = custom_fmaxf(self->input_a[i], self->input_b[i]);
-  }
+__global__ void testFmaxCuda(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_cuda[i] = fmaxf(self->input_a[i], self->input_b[i]);
+}
+__global__ void testFmaxCustom(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_custom[i] = custom_fmaxf(self->input_a[i], self->input_b[i]);
+}
 
-  __global__ void testFminCuda(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_cuda[i] = fminf(self->input_a[i], self->input_b[i]);
-  }
-  __global__ void testFminCustom(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_custom[i] = custom_fminf(self->input_a[i], self->input_b[i]);
-  }
+__global__ void testFminCuda(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_cuda[i] = fminf(self->input_a[i], self->input_b[i]);
+}
+__global__ void testFminCustom(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_custom[i] = custom_fminf(self->input_a[i], self->input_b[i]);
+}
 
-  __global__ void testFmodCuda(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_cuda[i] = fmodf(self->input_a[i], self->input_b[i]);
-  }
-  __global__ void testFmodCustom(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_custom[i] = custom_fmodf(self->input_a[i], self->input_b[i]);
-  }
+__global__ void testFmodCuda(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_cuda[i] = fmodf(self->input_a[i], self->input_b[i]);
+}
+__global__ void testFmodCustom(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_custom[i] = custom_fmodf(self->input_a[i], self->input_b[i]);
+}
 
-  __global__ void testHypotCuda(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_cuda[i] = hypotf(self->input_a[i], self->input_b[i]);
-  }
-  __global__ void testHypotCustom(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_custom[i] = custom_hypotf(self->input_a[i], self->input_b[i]);
-  }
+__global__ void testHypotCuda(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_cuda[i] = hypotf(self->input_a[i], self->input_b[i]);
+}
+__global__ void testHypotCustom(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_custom[i] = custom_hypotf(self->input_a[i], self->input_b[i]);
+}
 
-  __global__ void testNextafterCuda(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_cuda[i] = nextafterf(self->input_a[i], self->input_b[i]);
-  }
-  __global__ void testNextafterCustom(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_custom[i] = custom_nextafterf(self->input_a[i], self->input_b[i]);
-  }
+__global__ void testNextafterCuda(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_cuda[i] = nextafterf(self->input_a[i], self->input_b[i]);
+}
+__global__ void testNextafterCustom(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_custom[i] = custom_nextafterf(self->input_a[i], self->input_b[i]);
+}
 
-  __global__ void testRemainderCuda(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_cuda[i] = remainderf(self->input_a[i], self->input_b[i]);
-  }
-  __global__ void testRemainderCustom(BinaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < BinaryTester::N)
-      self->out_custom[i] = custom_remainderf(self->input_a[i], self->input_b[i]);
-  }
+__global__ void testRemainderCuda(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_cuda[i] = remainderf(self->input_a[i], self->input_b[i]);
+}
+__global__ void testRemainderCustom(BinaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < BinaryTester::N)
+    self->out_custom[i] = custom_remainderf(self->input_a[i], self->input_b[i]);
+}
 
-  // -- One-value kernels for asm inspection --------------------------------
-  __global__ void testOneDivCuda(BinaryTester *self) {
-    self->out_cuda[0] = self->input_a[0] / self->input_b[0];
-  }
-  __global__ void testOneDivCustom(BinaryTester *self) {
-    self->out_custom[0] = custom_fdividef(self->input_a[0], self->input_b[0]);
-  }
-  __global__ void testOneDimCuda(BinaryTester *self) {
-    self->out_cuda[0] = fmaxf(self->input_a[0] - self->input_b[0], 0.0f);
-  }
-  __global__ void testOneDimCustom(BinaryTester *self) {
-    self->out_custom[0] = custom_dimf(self->input_a[0], self->input_b[0]);
-  }
-  __global__ void testOnePowCuda(BinaryTester *self) {
-    self->out_cuda[0] = powf(self->input_a[0], self->input_b[0]);
-  }
-  __global__ void testOnePowCustom(BinaryTester *self) {
-    self->out_custom[0] = custom_powf(self->input_a[0], self->input_b[0]);
-  }
-  __global__ void testOneFldivCuda(BinaryTester *self) {
-    self->out_cuda[0] = floorf(self->input_a[0] / self->input_b[0]);
-  }
-  __global__ void testOneFldivCustom(BinaryTester *self) {
-    self->out_custom[0] = custom_fldivf(self->input_a[0], self->input_b[0]);
-  }
-  __global__ void testOneCldivCuda(BinaryTester *self) {
-    self->out_cuda[0] = -floorf((-self->input_a[0]) / self->input_b[0]);
-  }
-  __global__ void testOneCldivCustom(BinaryTester *self) {
-    self->out_custom[0] = custom_cldivf(self->input_a[0], self->input_b[0]);
-  }
-  __global__ void testOneRootCuda(BinaryTester *self) {
-    self->out_cuda[0] = powf(self->input_a[0], 1.0f / self->input_b[0]);
-  }
-  __global__ void testOneRootCustom(BinaryTester *self) {
-    self->out_custom[0] = custom_rootf(self->input_a[0], self->input_b[0]);
-  }
-  __global__ void testOneAtan2Cuda(BinaryTester *self) {
-    self->out_cuda[0] = atan2f(self->input_a[0], self->input_b[0]);
-  }
-  __global__ void testOneAtan2Custom(BinaryTester *self) {
-    self->out_custom[0] = custom_atan2f(self->input_a[0], self->input_b[0]);
-  }
-  __global__ void testOneCopysignCuda(BinaryTester *self) {
-    self->out_cuda[0] = copysignf(self->input_a[0], self->input_b[0]);
-  }
-  __global__ void testOneCopysignCustom(BinaryTester *self) {
-    self->out_custom[0] = custom_copysignf(self->input_a[0], self->input_b[0]);
-  }
-  __global__ void testOneFmaxCuda(BinaryTester *self) {
-    self->out_cuda[0] = fmaxf(self->input_a[0], self->input_b[0]);
-  }
-  __global__ void testOneFmaxCustom(BinaryTester *self) {
-    self->out_custom[0] = custom_fmaxf(self->input_a[0], self->input_b[0]);
-  }
-  __global__ void testOneFminCuda(BinaryTester *self) {
-    self->out_cuda[0] = fminf(self->input_a[0], self->input_b[0]);
-  }
-  __global__ void testOneFminCustom(BinaryTester *self) {
-    self->out_custom[0] = custom_fminf(self->input_a[0], self->input_b[0]);
-  }
-  __global__ void testOneFmodCuda(BinaryTester *self) {
-    self->out_cuda[0] = fmodf(self->input_a[0], self->input_b[0]);
-  }
-  __global__ void testOneFmodCustom(BinaryTester *self) {
-    self->out_custom[0] = custom_fmodf(self->input_a[0], self->input_b[0]);
-  }
-  __global__ void testOneHypotCuda(BinaryTester *self) {
-    self->out_cuda[0] = hypotf(self->input_a[0], self->input_b[0]);
-  }
-  __global__ void testOneHypotCustom(BinaryTester *self) {
-    self->out_custom[0] = custom_hypotf(self->input_a[0], self->input_b[0]);
-  }
-  __global__ void testOneNextafterCuda(BinaryTester *self) {
-    self->out_cuda[0] = nextafterf(self->input_a[0], self->input_b[0]);
-  }
-  __global__ void testOneNextafterCustom(BinaryTester *self) {
-    self->out_custom[0] = custom_nextafterf(self->input_a[0], self->input_b[0]);
-  }
-  __global__ void testOneRemainderCuda(BinaryTester *self) {
-    self->out_cuda[0] = remainderf(self->input_a[0], self->input_b[0]);
-  }
+// -- One-value kernels for asm inspection --------------------------------
+__global__ void testOneDivCuda(BinaryTester *self) {
+  self->out_cuda[0] = self->input_a[0] / self->input_b[0];
+}
+__global__ void testOneDivCustom(BinaryTester *self) {
+  self->out_custom[0] = custom_fdividef(self->input_a[0], self->input_b[0]);
+}
+__global__ void testOneDimCuda(BinaryTester *self) {
+  self->out_cuda[0] = fmaxf(self->input_a[0] - self->input_b[0], 0.0f);
+}
+__global__ void testOneDimCustom(BinaryTester *self) {
+  self->out_custom[0] = custom_dimf(self->input_a[0], self->input_b[0]);
+}
+__global__ void testOnePowCuda(BinaryTester *self) {
+  self->out_cuda[0] = powf(self->input_a[0], self->input_b[0]);
+}
+__global__ void testOnePowCustom(BinaryTester *self) {
+  self->out_custom[0] = custom_powf(self->input_a[0], self->input_b[0]);
+}
+__global__ void testOneFldivCuda(BinaryTester *self) {
+  self->out_cuda[0] = floorf(self->input_a[0] / self->input_b[0]);
+}
+__global__ void testOneFldivCustom(BinaryTester *self) {
+  self->out_custom[0] = custom_fldivf(self->input_a[0], self->input_b[0]);
+}
+__global__ void testOneCldivCuda(BinaryTester *self) {
+  self->out_cuda[0] = -floorf((-self->input_a[0]) / self->input_b[0]);
+}
+__global__ void testOneCldivCustom(BinaryTester *self) {
+  self->out_custom[0] = custom_cldivf(self->input_a[0], self->input_b[0]);
+}
+__global__ void testOneRootCuda(BinaryTester *self) {
+  self->out_cuda[0] = powf(self->input_a[0], 1.0f / self->input_b[0]);
+}
+__global__ void testOneRootCustom(BinaryTester *self) {
+  self->out_custom[0] = custom_rootf(self->input_a[0], self->input_b[0]);
+}
+__global__ void testOneAtan2Cuda(BinaryTester *self) {
+  self->out_cuda[0] = atan2f(self->input_a[0], self->input_b[0]);
+}
+__global__ void testOneAtan2Custom(BinaryTester *self) {
+  self->out_custom[0] = custom_atan2f(self->input_a[0], self->input_b[0]);
+}
+__global__ void testOneCopysignCuda(BinaryTester *self) {
+  self->out_cuda[0] = copysignf(self->input_a[0], self->input_b[0]);
+}
+__global__ void testOneCopysignCustom(BinaryTester *self) {
+  self->out_custom[0] = custom_copysignf(self->input_a[0], self->input_b[0]);
+}
+__global__ void testOneFmaxCuda(BinaryTester *self) {
+  self->out_cuda[0] = fmaxf(self->input_a[0], self->input_b[0]);
+}
+__global__ void testOneFmaxCustom(BinaryTester *self) {
+  self->out_custom[0] = custom_fmaxf(self->input_a[0], self->input_b[0]);
+}
+__global__ void testOneFminCuda(BinaryTester *self) {
+  self->out_cuda[0] = fminf(self->input_a[0], self->input_b[0]);
+}
+__global__ void testOneFminCustom(BinaryTester *self) {
+  self->out_custom[0] = custom_fminf(self->input_a[0], self->input_b[0]);
+}
+__global__ void testOneFmodCuda(BinaryTester *self) {
+  self->out_cuda[0] = fmodf(self->input_a[0], self->input_b[0]);
+}
+__global__ void testOneFmodCustom(BinaryTester *self) {
+  self->out_custom[0] = custom_fmodf(self->input_a[0], self->input_b[0]);
+}
+__global__ void testOneHypotCuda(BinaryTester *self) {
+  self->out_cuda[0] = hypotf(self->input_a[0], self->input_b[0]);
+}
+__global__ void testOneHypotCustom(BinaryTester *self) {
+  self->out_custom[0] = custom_hypotf(self->input_a[0], self->input_b[0]);
+}
+__global__ void testOneNextafterCuda(BinaryTester *self) {
+  self->out_cuda[0] = nextafterf(self->input_a[0], self->input_b[0]);
+}
+__global__ void testOneNextafterCustom(BinaryTester *self) {
+  self->out_custom[0] = custom_nextafterf(self->input_a[0], self->input_b[0]);
+}
+__global__ void testOneRemainderCuda(BinaryTester *self) {
+  self->out_cuda[0] = remainderf(self->input_a[0], self->input_b[0]);
+}
 __global__ void testOneRemainderCustom(BinaryTester *self) {
   self->out_custom[0] = custom_remainderf(self->input_a[0], self->input_b[0]);
 }
@@ -996,11 +995,15 @@ static std::string fp32Hex(float v) {
   return std::format("0x{:08x}", bits);
 }
 
-static void displayResults(const BinaryTester &t, BinaryOp op, const float *torcheager, const float *torchinductor) {
+static void displayResults(const BinaryTester &t, BinaryOp op,
+                           const float *torcheager,
+                           const float *torchinductor) {
   const char *name = opName(op);
 
   if (csvOutput) {
-    std::cout << std::format("op,idx,a,b,alabel,blabel,row,{0}(cuda),{0}(custom),torch_eager,torch_inductor\n", name);
+    std::cout << std::format("op,idx,a,b,alabel,blabel,row,{0}(cuda),{0}("
+                             "custom),torch_eager,torch_inductor\n",
+                             name);
 
     for (size_t i = 0; i < BinaryTester::N; i++) {
       float a = t.input_a[i];
@@ -1008,21 +1011,26 @@ static void displayResults(const BinaryTester &t, BinaryOp op, const float *torc
       float ref = t.out_cuda[i];
 
       OneResult32 v_custom(ref, t.out_custom[i], true, verbose);
-      OneResult32 v_eager(ref, torcheager ? torcheager[i] : 0.0f, torcheager != nullptr, verbose);
-      OneResult32 v_inductor(ref, torchinductor ? torchinductor[i] : 0.0f, torchinductor != nullptr, verbose);
+      OneResult32 v_eager(ref, torcheager ? torcheager[i] : 0.0f,
+                          torcheager != nullptr, verbose);
+      OneResult32 v_inductor(ref, torchinductor ? torchinductor[i] : 0.0f,
+                             torchinductor != nullptr, verbose);
 
       bool allMatch = v_custom.match and v_eager.match and v_inductor.match;
       if (!quiet or !allMatch) {
         std::cout << std::format(
-            "{},{},{:g},{:g},\"{}\",\"{}\",VALUE,{:g},{:g},{},{}\n", name, i, a, b, kCases[i].alabel,
-            kCases[i].blabel, ref, t.out_custom[i], torcheager ? std::format("{:g}", torcheager[i]) : "",
+            "{},{},{:g},{:g},\"{}\",\"{}\",VALUE,{:g},{:g},{},{}\n", name, i, a,
+            b, kCases[i].alabel, kCases[i].blabel, ref, t.out_custom[i],
+            torcheager ? std::format("{:g}", torcheager[i]) : "",
             torchinductor ? std::format("{:g}", torchinductor[i]) : "");
       }
       if (!allMatch) {
-        std::cout << std::format("{},{},,,,HEX,{},{},{},{}\n", name, i, fp32Hex(ref), v_custom.hexValue(),
+        std::cout << std::format("{},{},,,,HEX,{},{},{},{}\n", name, i,
+                                 fp32Hex(ref), v_custom.hexValue(),
                                  v_eager.hexValue(), v_inductor.hexValue());
-        std::cout << std::format("{},{},,,,DIFF,,{},{},{}\n", name, i, v_custom.errorString(),
-                                 v_eager.errorString(), v_inductor.errorString());
+        std::cout << std::format("{},{},,,,DIFF,,{},{},{}\n", name, i,
+                                 v_custom.errorString(), v_eager.errorString(),
+                                 v_inductor.errorString());
       }
     }
     return;
@@ -1034,9 +1042,11 @@ static void displayResults(const BinaryTester &t, BinaryOp op, const float *torc
   if (useColor)
     std::cout << RESET;
 
-  std::cout << std::format("{:>4}{:>16}{:>16}{:>14}{:>14}{:>16}{:>16}{:>16}{:>16}\n", "Idx", "a", "b", "a label",
-                           "b label", std::format("{}(cuda)", name), std::format("{}(custom)", name),
-                           torcheager ? "torch-eager" : "", torchinductor ? "torch-inductor" : "");
+  std::cout << std::format(
+      "{:>4}{:>16}{:>16}{:>14}{:>14}{:>16}{:>16}{:>16}{:>16}\n", "Idx", "a",
+      "b", "a label", "b label", std::format("{}(cuda)", name),
+      std::format("{}(custom)", name), torcheager ? "torch-eager" : "",
+      torchinductor ? "torch-inductor" : "");
   std::cout << std::string(142, '-') << "\n";
 
   for (size_t i = 0; i < BinaryTester::N; i++) {
@@ -1045,20 +1055,25 @@ static void displayResults(const BinaryTester &t, BinaryOp op, const float *torc
     float ref = t.out_cuda[i];
 
     OneResult32 v_custom(ref, t.out_custom[i], true, verbose);
-    OneResult32 v_eager(ref, torcheager ? torcheager[i] : 0.0f, torcheager != nullptr, verbose);
-    OneResult32 v_inductor(ref, torchinductor ? torchinductor[i] : 0.0f, torchinductor != nullptr, verbose);
+    OneResult32 v_eager(ref, torcheager ? torcheager[i] : 0.0f,
+                        torcheager != nullptr, verbose);
+    OneResult32 v_inductor(ref, torchinductor ? torchinductor[i] : 0.0f,
+                           torchinductor != nullptr, verbose);
 
     bool allMatch = v_custom.match and v_eager.match and v_inductor.match;
 
     if (!quiet or !allMatch) {
-      std::cout << std::format("{:>4}{:>16g}{:>16g}{:>14}{:>14}{:>16.6g}{}{}{}\n", i, a, b, kCases[i].alabel,
-                               kCases[i].blabel, ref, v_custom.value(), v_eager.value(), v_inductor.value());
+      std::cout << std::format(
+          "{:>4}{:>16g}{:>16g}{:>14}{:>14}{:>16.6g}{}{}{}\n", i, a, b,
+          kCases[i].alabel, kCases[i].blabel, ref, v_custom.value(),
+          v_eager.value(), v_inductor.value());
     }
 
     if (verbose or !allMatch) {
-      std::cout << std::format("{:>4}{:>16}{:>16}{:>14}{:>14}{:>16}{:>16}{:>16}{:>16}\n", "", fp32Hex(a), fp32Hex(b),
-                               "", "", fp32Hex(ref), v_custom.hexValue(), v_eager.hexValue(),
-                               v_inductor.hexValue());
+      std::cout << std::format(
+          "{:>4}{:>16}{:>16}{:>14}{:>14}{:>16}{:>16}{:>16}{:>16}\n", "",
+          fp32Hex(a), fp32Hex(b), "", "", fp32Hex(ref), v_custom.hexValue(),
+          v_eager.hexValue(), v_inductor.hexValue());
     }
 
     if (!allMatch) {
@@ -1066,13 +1081,15 @@ static void displayResults(const BinaryTester &t, BinaryOp op, const float *torc
       std::string es_custom = v_custom.errorString();
       std::string es_eager = v_eager.errorString();
       std::string es_inductor = v_inductor.errorString();
-      if ((es_custom == "ERROR") or (es_eager == "ERROR") or (es_inductor == "ERROR"))
+      if ((es_custom == "ERROR") or (es_eager == "ERROR") or
+          (es_inductor == "ERROR"))
         color = RED;
       if (useColor)
         std::cout << color;
 
-      std::cout << std::format("{:>4}{:>16}{:>16}{:>14}{:>14}{:>16}{:>16}{:>16}{:>16}\n", "", "", "", "", "", "", es_custom,
-                               es_eager, es_inductor);
+      std::cout << std::format(
+          "{:>4}{:>16}{:>16}{:>14}{:>14}{:>16}{:>16}{:>16}{:>16}\n", "", "", "",
+          "", "", "", es_custom, es_eager, es_inductor);
       if (useColor)
         std::cout << RESET;
     }
@@ -1283,31 +1300,37 @@ int main(int argc, char **argv) {
       torchinductorFile = optarg;
       break;
     case Options::help:
-      std::cout << "binary_test"
-                   " --[dim|div|pow|fldiv|cldiv|root|atan2|copysign|fmax|fmin|fmod|hypot|nextafter|remainder]"
-                   " [--op name]"
-                   " [--verbose]"
-                   " [--quiet]"
-                   " [--color]"
-                   " [--csv]"
-                   " [--dump-inputs filename]"
-                   " [--torcheager file.bin]"
-                   " [--torchinductor file.bin]\n\n"
-                   "Run with:\n"
-                   "  complexops/binary_test --dump-inputs ./binarytest.in\n"
-                   "  ../bin/torchbinary.py --op div --file ./binarytest.in\n"
-                   "  complexops/binary_test --div --torcheager torcheagerdiv.bin "
-                   "--torchinductor torchinductordiv.bin --verbose --quiet --color | less -R\n\n"
-                   "\t--OP.         (required) one of: dim, div, pow, fldiv, cldiv, root, atan2, copysign, fmax, fmin, fmod, hypot, nextafter, remainder\n"
-                   "\t--op name.    alternative way to select the operation\n"
-                   "\t--verbose.    Show hex values even when matches\n"
-                   "\t--quiet.      Suppress rows where all results match\n"
-                   "\t--color.      Highlight mismatch diagnostics\n"
-                   "\t--csv.        Emit CSV output (VALUE/HEX/DIFF rows)\n"
-                   "\t--dump-inputs Write interleaved (a,b) float pairs as binary to file\n"
-                   "\t--torcheager  Binary float file with torch eager results\n"
-                   "\t--torchinductor Binary float file with torch inductor results\n"
-                   "\t--help.       Show this output and exit\n";
+      std::cout
+          << "binary_test"
+             " --[dim|div|pow|fldiv|cldiv|root|atan2|copysign|fmax|fmin|fmod|"
+             "hypot|nextafter|remainder]"
+             " [--op name]"
+             " [--verbose]"
+             " [--quiet]"
+             " [--color]"
+             " [--csv]"
+             " [--dump-inputs filename]"
+             " [--torcheager file.bin]"
+             " [--torchinductor file.bin]\n\n"
+             "Run with:\n"
+             "  complexops/binary_test --dump-inputs ./binarytest.in\n"
+             "  ../bin/torchbinary.py --op div --file ./binarytest.in\n"
+             "  complexops/binary_test --div --torcheager torcheagerdiv.bin "
+             "--torchinductor torchinductordiv.bin --verbose --quiet --color | "
+             "less -R\n\n"
+             "\t--OP.         (required) one of: dim, div, pow, fldiv, cldiv, "
+             "root, atan2, copysign, fmax, fmin, fmod, hypot, nextafter, "
+             "remainder\n"
+             "\t--op name.    alternative way to select the operation\n"
+             "\t--verbose.    Show hex values even when matches\n"
+             "\t--quiet.      Suppress rows where all results match\n"
+             "\t--color.      Highlight mismatch diagnostics\n"
+             "\t--csv.        Emit CSV output (VALUE/HEX/DIFF rows)\n"
+             "\t--dump-inputs Write interleaved (a,b) float pairs as binary to "
+             "file\n"
+             "\t--torcheager  Binary float file with torch eager results\n"
+             "\t--torchinductor Binary float file with torch inductor results\n"
+             "\t--help.       Show this output and exit\n";
       return 0;
     default:
       std::cerr << "binary_test: unknown option\n";
@@ -1327,7 +1350,8 @@ int main(int argc, char **argv) {
       ofs.write(reinterpret_cast<const char *>(&tmp.input_b[i]), sizeof(float));
     }
     ofs.close();
-    std::cout << "Wrote interleaved (a,b) input values to " << dumpFile << std::endl;
+    std::cout << "Wrote interleaved (a,b) input values to " << dumpFile
+              << std::endl;
     return 0;
   }
 
@@ -1370,7 +1394,8 @@ int main(int argc, char **argv) {
   customKernel<<<gridSize, blockSize>>>(tester);
   CUDA_CHECK(cudaDeviceSynchronize());
 
-  displayResults(*tester, selectedOp, torcheagerFile ? torcheagerOut.data() : nullptr,
+  displayResults(*tester, selectedOp,
+                 torcheagerFile ? torcheagerOut.data() : nullptr,
                  torchinductorFile ? torchinductorOut.data() : nullptr);
 
   CUDA_CHECK(cudaFree(tester));
