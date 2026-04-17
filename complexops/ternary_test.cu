@@ -1,9 +1,9 @@
 #include <cstdint>
 #include <cstring>
+#include <cuda_runtime.h>
 #include <format>
 #include <fstream>
 #include <getopt.h>
-#include <cuda_runtime.h>
 #include <iostream>
 #include <limits>
 #include <string>
@@ -12,8 +12,8 @@
 #include "OneResult32.hpp"
 #include "colors.hpp"
 #include "cuda_check.hpp"
-#include "readbinary.hpp"
 #include "custom_asm.hpp"
+#include "readbinary.hpp"
 
 struct TernaryCase {
   float a;
@@ -114,72 +114,75 @@ public:
     std::memset(out_cuda, 0xff, sizeof(out_cuda));
     std::memset(out_custom, 0xff, sizeof(out_custom));
   }
-
 };
 
-  __global__ void testMacCuda(TernaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < TernaryTester::N)
-      self->out_cuda[i] = fmaf(self->input_a[i], self->input_b[i], self->input_c[i]);
-  }
-  __global__ void testMacCustom(TernaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < TernaryTester::N)
-      self->out_custom[i] =
-          custom_macf(self->input_a[i], self->input_b[i], self->input_c[i]);
-  }
+__global__ void testMacCuda(TernaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < TernaryTester::N)
+    self->out_cuda[i] =
+        fmaf(self->input_a[i], self->input_b[i], self->input_c[i]);
+}
+__global__ void testMacCustom(TernaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < TernaryTester::N)
+    self->out_custom[i] =
+        custom_macf(self->input_a[i], self->input_b[i], self->input_c[i]);
+}
 
-  __global__ void testClipCuda(TernaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < TernaryTester::N)
-      self->out_cuda[i] = fmaxf(fminf(self->input_a[i], self->input_b[i]), self->input_c[i]);
-  }
-  __global__ void testClipCustom(TernaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < TernaryTester::N)
-      self->out_custom[i] =
-          custom_clipf(self->input_a[i], self->input_b[i], self->input_c[i]);
-  }
+__global__ void testClipCuda(TernaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < TernaryTester::N)
+    self->out_cuda[i] =
+        fmaxf(fminf(self->input_a[i], self->input_b[i]), self->input_c[i]);
+}
+__global__ void testClipCustom(TernaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < TernaryTester::N)
+    self->out_custom[i] =
+        custom_clipf(self->input_a[i], self->input_b[i], self->input_c[i]);
+}
 
-  __global__ void testSelCuda(TernaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < TernaryTester::N)
-      self->out_cuda[i] = (self->input_a[i] != 0.0f) ? self->input_b[i] : self->input_c[i];
-  }
-  __global__ void testSelCustom(TernaryTester *self) {
-    size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < TernaryTester::N)
-      self->out_custom[i] = custom_sel(
-          static_cast<uint32_t>(self->input_a[i] != 0.0f),
-          self->input_b[i], self->input_c[i]);
-  }
+__global__ void testSelCuda(TernaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < TernaryTester::N)
+    self->out_cuda[i] =
+        (self->input_a[i] != 0.0f) ? self->input_b[i] : self->input_c[i];
+}
+__global__ void testSelCustom(TernaryTester *self) {
+  size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < TernaryTester::N)
+    self->out_custom[i] =
+        custom_sel(static_cast<uint32_t>(self->input_a[i] != 0.0f),
+                   self->input_b[i], self->input_c[i]);
+}
 
-  // -- One-value kernels for asm inspection --------------------------------
-  __global__ void testOneMacCuda(TernaryTester *self) {
-    self->out_cuda[0] = fmaf(self->input_a[0], self->input_b[0], self->input_c[0]);
-  }
-  __global__ void testOneMacCustom(TernaryTester *self) {
-    self->out_custom[0] =
-        custom_macf(self->input_a[0], self->input_b[0], self->input_c[0]);
-  }
+// -- One-value kernels for asm inspection --------------------------------
+__global__ void testOneMacCuda(TernaryTester *self) {
+  self->out_cuda[0] =
+      fmaf(self->input_a[0], self->input_b[0], self->input_c[0]);
+}
+__global__ void testOneMacCustom(TernaryTester *self) {
+  self->out_custom[0] =
+      custom_macf(self->input_a[0], self->input_b[0], self->input_c[0]);
+}
 
-  __global__ void testOneClipCuda(TernaryTester *self) {
-    self->out_cuda[0] =
-        fmaxf(fminf(self->input_a[0], self->input_b[0]), self->input_c[0]);
-  }
-  __global__ void testOneClipCustom(TernaryTester *self) {
-    self->out_custom[0] =
-        custom_clipf(self->input_a[0], self->input_b[0], self->input_c[0]);
-  }
+__global__ void testOneClipCuda(TernaryTester *self) {
+  self->out_cuda[0] =
+      fmaxf(fminf(self->input_a[0], self->input_b[0]), self->input_c[0]);
+}
+__global__ void testOneClipCustom(TernaryTester *self) {
+  self->out_custom[0] =
+      custom_clipf(self->input_a[0], self->input_b[0], self->input_c[0]);
+}
 
-  __global__ void testOneSelCuda(TernaryTester *self) {
-    self->out_cuda[0] =
-        (self->input_a[0] != 0.0f) ? self->input_b[0] : self->input_c[0];
-  }
+__global__ void testOneSelCuda(TernaryTester *self) {
+  self->out_cuda[0] =
+      (self->input_a[0] != 0.0f) ? self->input_b[0] : self->input_c[0];
+}
 __global__ void testOneSelCustom(TernaryTester *self) {
-  self->out_custom[0] = custom_sel(
-      static_cast<uint32_t>(self->input_a[0] != 0.0f), self->input_b[0],
-      self->input_c[0]);
+  self->out_custom[0] =
+      custom_sel(static_cast<uint32_t>(self->input_a[0] != 0.0f),
+                 self->input_b[0], self->input_c[0]);
 }
 
 bool verbose{};
@@ -193,15 +196,16 @@ static std::string fp32Hex(float v) {
   return std::format("0x{:08x}", bits);
 }
 
-static void displayResults(const TernaryTester &t, TernaryOp op, const float *torcheager,
+static void displayResults(const TernaryTester &t, TernaryOp op,
+                           const float *torcheager,
                            const float *torchinductor) {
   const char *name = opName(op);
 
   if (csvOutput) {
-    std::cout << std::format(
-        "op,idx,a,b,c,alabel,blabel,clabel,row,{0}(cuda),{0}(custom),torch_eager,"
-        "torch_inductor\n",
-        name);
+    std::cout << std::format("op,idx,a,b,c,alabel,blabel,clabel,row,{0}(cuda),{"
+                             "0}(custom),torch_eager,"
+                             "torch_inductor\n",
+                             name);
 
     for (size_t i = 0; i < TernaryTester::N; i++) {
       float a = t.input_a[i];
@@ -211,23 +215,24 @@ static void displayResults(const TernaryTester &t, TernaryOp op, const float *to
 
       OneResult32 v_custom(ref, t.out_custom[i], true, verbose);
       OneResult32 v_eager(ref, torcheager ? torcheager[i] : 0.0f,
-                               torcheager != nullptr, verbose);
+                          torcheager != nullptr, verbose);
       OneResult32 v_inductor(ref, torchinductor ? torchinductor[i] : 0.0f,
-                                  torchinductor != nullptr, verbose);
+                             torchinductor != nullptr, verbose);
 
       bool allMatch = v_custom.match && v_eager.match && v_inductor.match;
 
       if (!quiet || !allMatch) {
         std::cout << std::format(
-            "{},{},{:g},{:g},{:g},\"{}\",\"{}\",\"{}\",VALUE,{:g},{:g},{},{}\n", name,
-            i, a, b, c, kCases[i].alabel, kCases[i].blabel, kCases[i].clabel, ref,
-            t.out_custom[i], torcheager ? std::format("{:g}", torcheager[i]) : "",
+            "{},{},{:g},{:g},{:g},\"{}\",\"{}\",\"{}\",VALUE,{:g},{:g},{},{}\n",
+            name, i, a, b, c, kCases[i].alabel, kCases[i].blabel,
+            kCases[i].clabel, ref, t.out_custom[i],
+            torcheager ? std::format("{:g}", torcheager[i]) : "",
             torchinductor ? std::format("{:g}", torchinductor[i]) : "");
       }
       if (!allMatch) {
-        std::cout << std::format("{},{},,,,,,,,HEX,{},{},{},{}\n", name, i, fp32Hex(ref),
-                                 v_custom.hexValue(), v_eager.hexValue(),
-                                 v_inductor.hexValue());
+        std::cout << std::format("{},{},,,,,,,,HEX,{},{},{},{}\n", name, i,
+                                 fp32Hex(ref), v_custom.hexValue(),
+                                 v_eager.hexValue(), v_inductor.hexValue());
         std::cout << std::format("{},{},,,,,,,,DIFF,,{},{},{}\n", name, i,
                                  v_custom.errorString(), v_eager.errorString(),
                                  v_inductor.errorString());
@@ -242,10 +247,11 @@ static void displayResults(const TernaryTester &t, TernaryOp op, const float *to
   if (useColor)
     std::cout << RESET;
 
-  std::cout << std::format("{:>4}{:>14}{:>14}{:>14}{:>10}{:>10}{:>10}{:>16}{:>16}{:>16}{:>16}\n", "Idx",
-                           "a", "b", "c", "a lbl", "b lbl", "c lbl",
-                           std::format("{}(cuda)", name), std::format("{}(custom)", name),
-                           torcheager ? "torch-eager" : "", torchinductor ? "torch-inductor" : "");
+  std::cout << std::format(
+      "{:>4}{:>14}{:>14}{:>14}{:>10}{:>10}{:>10}{:>16}{:>16}{:>16}{:>16}\n",
+      "Idx", "a", "b", "c", "a lbl", "b lbl", "c lbl",
+      std::format("{}(cuda)", name), std::format("{}(custom)", name),
+      torcheager ? "torch-eager" : "", torchinductor ? "torch-inductor" : "");
   std::cout << std::string(160, '-') << "\n";
 
   for (size_t i = 0; i < TernaryTester::N; i++) {
@@ -256,23 +262,23 @@ static void displayResults(const TernaryTester &t, TernaryOp op, const float *to
 
     OneResult32 v_custom(ref, t.out_custom[i], true, verbose);
     OneResult32 v_eager(ref, torcheager ? torcheager[i] : 0.0f,
-                             torcheager != nullptr, verbose);
+                        torcheager != nullptr, verbose);
     OneResult32 v_inductor(ref, torchinductor ? torchinductor[i] : 0.0f,
-                                torchinductor != nullptr, verbose);
+                           torchinductor != nullptr, verbose);
 
     bool allMatch = v_custom.match && v_eager.match && v_inductor.match;
 
     if (!quiet || !allMatch) {
       std::cout << std::format(
-          "{:>4}{:>14g}{:>14g}{:>14g}{:>10}{:>10}{:>10}{:>16.6g}{}{}{}\n", i, a, b, c,
-          kCases[i].alabel, kCases[i].blabel, kCases[i].clabel, ref, v_custom.value(),
-          v_eager.value(), v_inductor.value());
+          "{:>4}{:>14g}{:>14g}{:>14g}{:>10}{:>10}{:>10}{:>16.6g}{}{}{}\n", i, a,
+          b, c, kCases[i].alabel, kCases[i].blabel, kCases[i].clabel, ref,
+          v_custom.value(), v_eager.value(), v_inductor.value());
     }
 
     if (verbose || !allMatch) {
       std::cout << std::format(
-          "{:>4}{:>14}{:>14}{:>14}{:>10}{:>10}{:>10}{:>16}{:>16}{:>16}{:>16}\n", "",
-          fp32Hex(a), fp32Hex(b), fp32Hex(c), "", "", "", fp32Hex(ref),
+          "{:>4}{:>14}{:>14}{:>14}{:>10}{:>10}{:>10}{:>16}{:>16}{:>16}{:>16}\n",
+          "", fp32Hex(a), fp32Hex(b), fp32Hex(c), "", "", "", fp32Hex(ref),
           v_custom.hexValue(), v_eager.hexValue(), v_inductor.hexValue());
     }
 
@@ -288,8 +294,8 @@ static void displayResults(const TernaryTester &t, TernaryOp op, const float *to
         std::cout << color;
 
       std::cout << std::format(
-          "{:>4}{:>14}{:>14}{:>14}{:>10}{:>10}{:>10}{:>16}{:>16}{:>16}{:>16}\n", "", "",
-          "", "", "", "", "", "", es_custom, es_eager, es_inductor);
+          "{:>4}{:>14}{:>14}{:>14}{:>10}{:>10}{:>10}{:>16}{:>16}{:>16}{:>16}\n",
+          "", "", "", "", "", "", "", "", es_custom, es_eager, es_inductor);
       if (useColor)
         std::cout << RESET;
     }
@@ -401,31 +407,34 @@ int main(int argc, char **argv) {
       torchinductorFile = optarg;
       break;
     case Options::help:
-      std::cout << "ternary_test"
-                   " --[mac|clip|sel]"
-                   " [--op name]"
-                   " [--verbose]"
-                   " [--quiet]"
-                   " [--color]"
-                   " [--csv]"
-                   " [--dump-inputs filename]"
-                   " [--torcheager file.bin]"
-                   " [--torchinductor file.bin]\n\n"
-                   "Run with:\n"
-                   "  complexops/ternary_test --dump-inputs ./ternarytest.in\n"
-                   "  ../bin/torchternary.py --op mac --file ./ternarytest.in\n"
-                   "  complexops/ternary_test --mac --torcheager torcheagermac.bin "
-                   "--torchinductor torchinductormac.bin --verbose --quiet --color | less -R\n\n"
-                   "\t--OP.         (required) one of: mac, clip, sel\n"
-                   "\t--op name.    alternative way to select the operation\n"
-                   "\t--verbose.    Show hex values\n"
-                   "\t--quiet.      Suppress VALUE rows\n"
-                   "\t--color.      Colorize the title\n"
-                   "\t--csv.        Emit CSV output\n"
-                   "\t--dump-inputs Write interleaved (a,b,c) float triplets as binary to file\n"
-                   "\t--torcheager  Binary float file with torch eager results\n"
-                   "\t--torchinductor Binary float file with torch inductor results\n"
-                   "\t--help.       Show this output and exit\n";
+      std::cout
+          << "ternary_test"
+             " --[mac|clip|sel]"
+             " [--op name]"
+             " [--verbose]"
+             " [--quiet]"
+             " [--color]"
+             " [--csv]"
+             " [--dump-inputs filename]"
+             " [--torcheager file.bin]"
+             " [--torchinductor file.bin]\n\n"
+             "Run with:\n"
+             "  complexops/ternary_test --dump-inputs ./ternarytest.in\n"
+             "  ../bin/torchternary.py --op mac --file ./ternarytest.in\n"
+             "  complexops/ternary_test --mac --torcheager torcheagermac.bin "
+             "--torchinductor torchinductormac.bin --verbose --quiet --color | "
+             "less -R\n\n"
+             "\t--OP.         (required) one of: mac, clip, sel\n"
+             "\t--op name.    alternative way to select the operation\n"
+             "\t--verbose.    Show hex values\n"
+             "\t--quiet.      Suppress VALUE rows\n"
+             "\t--color.      Colorize the title\n"
+             "\t--csv.        Emit CSV output\n"
+             "\t--dump-inputs Write interleaved (a,b,c) float triplets as "
+             "binary to file\n"
+             "\t--torcheager  Binary float file with torch eager results\n"
+             "\t--torchinductor Binary float file with torch inductor results\n"
+             "\t--help.       Show this output and exit\n";
       return 0;
     default:
       std::cerr << "ternary_test: unknown option\n";
@@ -446,7 +455,8 @@ int main(int argc, char **argv) {
       ofs.write(reinterpret_cast<const char *>(&tmp.input_c[i]), sizeof(float));
     }
     ofs.close();
-    std::cout << "Wrote interleaved (a,b,c) input values to " << dumpFile << std::endl;
+    std::cout << "Wrote interleaved (a,b,c) input values to " << dumpFile
+              << std::endl;
     return 0;
   }
 
@@ -489,7 +499,8 @@ int main(int argc, char **argv) {
   customKernel<<<gridSize, blockSize>>>(tester);
   CUDA_CHECK(cudaDeviceSynchronize());
 
-  displayResults(*tester, selectedOp, torcheagerFile ? torcheagerOut.data() : nullptr,
+  displayResults(*tester, selectedOp,
+                 torcheagerFile ? torcheagerOut.data() : nullptr,
                  torchinductorFile ? torchinductorOut.data() : nullptr);
 
   CUDA_CHECK(cudaFree(tester));
