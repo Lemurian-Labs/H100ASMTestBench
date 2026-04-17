@@ -28,17 +28,17 @@
 // Binary Ops
 
 // Placeholder: NautilusOp atan2
-__device__ inline float custom_atan2f(float a, float b) {
+inline float __device__ custom_atan2f(float a, float b) {
   return atan2f(a, b);
 }
 
 // Placeholder: NautilusOp mod
-__device__ inline float custom_fmodf(float a, float b) {
+inline float __device__ custom_fmodf(float a, float b) {
   return fmodf(a, b);
 }
 
 // Placeholder: NautilusOp mod (via remainder)
-__device__ inline float custom_remainderf(float a, float b) {
+inline float __device__ custom_remainderf(float a, float b) {
   return remainderf(a, b);
 }
 
@@ -551,7 +551,7 @@ inline float __device__ custom_rcp(float x) {
 //   ex2.approx.f32  tmp, tmp
 // Full special-case handling (negative base, NaN, ±0, ±inf) requires
 // the complex sequence documented in Mi300xASMTestBench/complexops/custom_asm.hpp.
-inline __device__ float custom_powf(float a, float b) {
+inline float __device__ custom_powf(float a, float b) {
   return powf(a, b);
 }
 
@@ -559,7 +559,7 @@ inline __device__ float custom_powf(float a, float b) {
 // Binary ops:
 
 // NautilusOp: copysign
-__device__ inline float custom_copysignf(float a, float b) {
+inline float __device__ custom_copysignf(float a, float b) {
   float result;
   __asm__ __volatile__(
       "// %0 = copysign(%1, %2)\n\t"
@@ -575,7 +575,7 @@ __device__ inline float custom_copysignf(float a, float b) {
 // Note: CUDA fmaxf follows IEEE (returns the non-NaN operand when one input
 // is NaN).  The ROCm v_max_f32 version first canonicalized NaN inputs, then
 // took the maximum — semantics differ for NaN inputs.
-__device__ inline float custom_fmaxf(float a, float b) {
+inline float __device__ custom_fmaxf(float a, float b) {
   float result;
   __asm__ __volatile__(
       "// %0 = max(%1, %2)\n\t"
@@ -607,7 +607,7 @@ inline float __device__ custom_dimf(float a, float b) {
 
 // NautilusOp: min2
 // Same NaN-semantics caveat as custom_fmaxf above.
-__device__ inline float custom_fminf(float a, float b) {
+inline float __device__ custom_fminf(float a, float b) {
   float result;
   __asm__ __volatile__(
       "// %0 = min(%1, %2)\n\t"
@@ -620,12 +620,12 @@ __device__ inline float custom_fminf(float a, float b) {
 }
 
 // Placeholder: NautilusOp hypot
-__device__ inline float custom_hypotf(float a, float b) {
+inline float __device__ custom_hypotf(float a, float b) {
   return hypotf(a, b);
 }
 
 // Placeholder: NautilusOp nextafter
-__device__ inline float custom_nextafterf(float a, float b) {
+inline float __device__ custom_nextafterf(float a, float b) {
   return nextafterf(a, b);
 }
 
