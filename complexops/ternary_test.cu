@@ -3,7 +3,7 @@
 #include <format>
 #include <fstream>
 #include <getopt.h>
-#include <hip/hip_runtime.h>
+#include <cuda_runtime.h>
 #include <iostream>
 #include <limits>
 #include <string>
@@ -11,7 +11,7 @@
 
 #include "OneResult32.hpp"
 #include "colors.hpp"
-#include "hipcheck.hpp"
+#include "cuda_check.hpp"
 #include "readbinary.hpp"
 #include "custom_asm.hpp"
 
@@ -99,7 +99,7 @@ public:
   float input_a[N];
   float input_b[N];
   float input_c[N];
-  float out_rocm[N];
+  float out_cuda[N];
   float out_custom[N];
 
   __host__ TernaryTester() {
@@ -111,90 +111,76 @@ public:
   }
 
   __host__ void reset() {
-    std::memset(out_rocm, 0xff, sizeof(out_rocm));
+    std::memset(out_cuda, 0xff, sizeof(out_cuda));
     std::memset(out_custom, 0xff, sizeof(out_custom));
   }
 
-  // TODO(peeter): Replace these TODO implementations with real ROCm/custom
-  // ternary operations for sel.
-  __device__ static float todoRocm(float a, float b, float c) {
-    (void)a;
-    (void)b;
-    (void)c;
-    return nanf("");
-  }
-  __device__ static float todoCustom(float a, float b, float c) {
-    (void)a;
-    (void)b;
-    (void)c;
-    return nanf("");
-  }
+};
 
-  __global__ static void testMacRocm(TernaryTester *self) {
+  __global__ void testMacCuda(TernaryTester *self) {
     size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < N)
-      self->out_rocm[i] = fmaf(self->input_a[i], self->input_b[i], self->input_c[i]);
+    if (i < TernaryTester::N)
+      self->out_cuda[i] = fmaf(self->input_a[i], self->input_b[i], self->input_c[i]);
   }
-  __global__ static void testMacCustom(TernaryTester *self) {
+  __global__ void testMacCustom(TernaryTester *self) {
     size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < N)
+    if (i < TernaryTester::N)
       self->out_custom[i] =
           custom_macf(self->input_a[i], self->input_b[i], self->input_c[i]);
   }
 
-  __global__ static void testClipRocm(TernaryTester *self) {
+  __global__ void testClipCuda(TernaryTester *self) {
     size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < N)
-      self->out_rocm[i] = fmaxf(fminf(self->input_a[i], self->input_b[i]), self->input_c[i]);
+    if (i < TernaryTester::N)
+      self->out_cuda[i] = fmaxf(fminf(self->input_a[i], self->input_b[i]), self->input_c[i]);
   }
-  __global__ static void testClipCustom(TernaryTester *self) {
+  __global__ void testClipCustom(TernaryTester *self) {
     size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < N)
+    if (i < TernaryTester::N)
       self->out_custom[i] =
           custom_clipf(self->input_a[i], self->input_b[i], self->input_c[i]);
   }
 
-  __global__ static void testSelRocm(TernaryTester *self) {
+  __global__ void testSelCuda(TernaryTester *self) {
     size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < N)
-      self->out_rocm[i] = (self->input_a[i] != 0.0f) ? self->input_b[i] : self->input_c[i];
+    if (i < TernaryTester::N)
+      self->out_cuda[i] = (self->input_a[i] != 0.0f) ? self->input_b[i] : self->input_c[i];
   }
-  __global__ static void testSelCustom(TernaryTester *self) {
+  __global__ void testSelCustom(TernaryTester *self) {
     size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < N)
+    if (i < TernaryTester::N)
       self->out_custom[i] = custom_sel(
           static_cast<uint32_t>(self->input_a[i] != 0.0f),
           self->input_b[i], self->input_c[i]);
   }
 
   // -- One-value kernels for asm inspection --------------------------------
-  __global__ static void testOneMacRocm(TernaryTester *self) {
-    self->out_rocm[0] = fmaf(self->input_a[0], self->input_b[0], self->input_c[0]);
+  __global__ void testOneMacCuda(TernaryTester *self) {
+    self->out_cuda[0] = fmaf(self->input_a[0], self->input_b[0], self->input_c[0]);
   }
-  __global__ static void testOneMacCustom(TernaryTester *self) {
+  __global__ void testOneMacCustom(TernaryTester *self) {
     self->out_custom[0] =
         custom_macf(self->input_a[0], self->input_b[0], self->input_c[0]);
   }
 
-  __global__ static void testOneClipRocm(TernaryTester *self) {
-    self->out_rocm[0] =
+  __global__ void testOneClipCuda(TernaryTester *self) {
+    self->out_cuda[0] =
         fmaxf(fminf(self->input_a[0], self->input_b[0]), self->input_c[0]);
   }
-  __global__ static void testOneClipCustom(TernaryTester *self) {
+  __global__ void testOneClipCustom(TernaryTester *self) {
     self->out_custom[0] =
         custom_clipf(self->input_a[0], self->input_b[0], self->input_c[0]);
   }
 
-  __global__ static void testOneSelRocm(TernaryTester *self) {
-    self->out_rocm[0] =
+  __global__ void testOneSelCuda(TernaryTester *self) {
+    self->out_cuda[0] =
         (self->input_a[0] != 0.0f) ? self->input_b[0] : self->input_c[0];
   }
-  __global__ static void testOneSelCustom(TernaryTester *self) {
-    self->out_custom[0] = custom_sel(
-        static_cast<uint32_t>(self->input_a[0] != 0.0f), self->input_b[0],
-        self->input_c[0]);
-  }
-};
+__global__ void testOneSelCustom(TernaryTester *self) {
+  self->out_custom[0] = custom_sel(
+      static_cast<uint32_t>(self->input_a[0] != 0.0f), self->input_b[0],
+      self->input_c[0]);
+}
 
 bool verbose{};
 bool useColor{};
@@ -213,7 +199,7 @@ static void displayResults(const TernaryTester &t, TernaryOp op, const float *to
 
   if (csvOutput) {
     std::cout << std::format(
-        "op,idx,a,b,c,alabel,blabel,clabel,row,{0}(rocm),{0}(custom),torch_eager,"
+        "op,idx,a,b,c,alabel,blabel,clabel,row,{0}(cuda),{0}(custom),torch_eager,"
         "torch_inductor\n",
         name);
 
@@ -221,12 +207,12 @@ static void displayResults(const TernaryTester &t, TernaryOp op, const float *to
       float a = t.input_a[i];
       float b = t.input_b[i];
       float c = t.input_c[i];
-      float ref = t.out_rocm[i];
+      float ref = t.out_cuda[i];
 
-      OneResultFloat32 v_custom(ref, t.out_custom[i], true, verbose);
-      OneResultFloat32 v_eager(ref, torcheager ? torcheager[i] : 0.0f,
+      OneResult32 v_custom(ref, t.out_custom[i], true, verbose);
+      OneResult32 v_eager(ref, torcheager ? torcheager[i] : 0.0f,
                                torcheager != nullptr, verbose);
-      OneResultFloat32 v_inductor(ref, torchinductor ? torchinductor[i] : 0.0f,
+      OneResult32 v_inductor(ref, torchinductor ? torchinductor[i] : 0.0f,
                                   torchinductor != nullptr, verbose);
 
       bool allMatch = v_custom.match && v_eager.match && v_inductor.match;
@@ -252,13 +238,13 @@ static void displayResults(const TernaryTester &t, TernaryOp op, const float *to
 
   if (useColor)
     std::cout << RED;
-  std::cout << std::format("TRINARY OP: {}\n\n", name);
+  std::cout << std::format("TERNARY OP: {}\n\n", name);
   if (useColor)
     std::cout << RESET;
 
   std::cout << std::format("{:>4}{:>14}{:>14}{:>14}{:>10}{:>10}{:>10}{:>16}{:>16}{:>16}{:>16}\n", "Idx",
                            "a", "b", "c", "a lbl", "b lbl", "c lbl",
-                           std::format("{}(rocm)", name), std::format("{}(custom)", name),
+                           std::format("{}(cuda)", name), std::format("{}(custom)", name),
                            torcheager ? "torch-eager" : "", torchinductor ? "torch-inductor" : "");
   std::cout << std::string(160, '-') << "\n";
 
@@ -266,12 +252,12 @@ static void displayResults(const TernaryTester &t, TernaryOp op, const float *to
     float a = t.input_a[i];
     float b = t.input_b[i];
     float c = t.input_c[i];
-    float ref = t.out_rocm[i];
+    float ref = t.out_cuda[i];
 
-    OneResultFloat32 v_custom(ref, t.out_custom[i], true, verbose);
-    OneResultFloat32 v_eager(ref, torcheager ? torcheager[i] : 0.0f,
+    OneResult32 v_custom(ref, t.out_custom[i], true, verbose);
+    OneResult32 v_eager(ref, torcheager ? torcheager[i] : 0.0f,
                              torcheager != nullptr, verbose);
-    OneResultFloat32 v_inductor(ref, torchinductor ? torchinductor[i] : 0.0f,
+    OneResult32 v_inductor(ref, torchinductor ? torchinductor[i] : 0.0f,
                                 torchinductor != nullptr, verbose);
 
     bool allMatch = v_custom.match && v_eager.match && v_inductor.match;
@@ -313,18 +299,18 @@ static void displayResults(const TernaryTester &t, TernaryOp op, const float *to
 using KernelFn = void (*)(TernaryTester *);
 
 struct KernelPair {
-  KernelFn rocm;
+  KernelFn cuda;
   KernelFn custom;
 };
 
 static KernelPair kernelsForOp(TernaryOp op) {
   switch (op) {
   case TernaryOp::Mac:
-    return {TernaryTester::testMacRocm, TernaryTester::testMacCustom};
+    return {testMacCuda, testMacCustom};
   case TernaryOp::Clip:
-    return {TernaryTester::testClipRocm, TernaryTester::testClipCustom};
+    return {testClipCuda, testClipCustom};
   case TernaryOp::Sel:
-    return {TernaryTester::testSelRocm, TernaryTester::testSelCustom};
+    return {testSelCuda, testSelCustom};
   case TernaryOp::Unknown:
     return {nullptr, nullptr};
   }
@@ -471,18 +457,18 @@ int main(int argc, char **argv) {
 
   std::vector<float> torchinductorOut, torcheagerOut;
   if (torchinductorFile) {
-    torchinductorOut = readBinaryFile<float>(torchinductorFile, TernaryTester::N);
+    torchinductorOut = readBinaryFloatFile(torchinductorFile, TernaryTester::N);
     if (torchinductorOut.empty())
       torchinductorFile = nullptr;
   }
   if (torcheagerFile) {
-    torcheagerOut = readBinaryFile<float>(torcheagerFile, TernaryTester::N);
+    torcheagerOut = readBinaryFloatFile(torcheagerFile, TernaryTester::N);
     if (torcheagerOut.empty())
       torcheagerFile = nullptr;
   }
 
   TernaryTester *tester;
-  HIP_CHECK(hipMallocManaged(&tester, sizeof(TernaryTester)));
+  CUDA_CHECK(cudaMallocManaged(&tester, sizeof(TernaryTester)));
   new (tester) TernaryTester();
 
   constexpr size_t kThreads = 256;
@@ -491,22 +477,22 @@ int main(int argc, char **argv) {
 
   tester->reset();
 
-  auto [rocmKernel, customKernel] = kernelsForOp(selectedOp);
-  if (!rocmKernel || !customKernel) {
+  auto [cudaKernel, customKernel] = kernelsForOp(selectedOp);
+  if (!cudaKernel || !customKernel) {
     std::cerr << "ternary_test: no kernels for selected operation\n";
-    HIP_CHECK(hipFree(tester));
+    CUDA_CHECK(cudaFree(tester));
     return 1;
   }
 
-  hipLaunchKernelGGL(rocmKernel, gridSize, blockSize, 0, 0, tester);
-  HIP_CHECK(hipDeviceSynchronize());
-  hipLaunchKernelGGL(customKernel, gridSize, blockSize, 0, 0, tester);
-  HIP_CHECK(hipDeviceSynchronize());
+  cudaKernel<<<gridSize, blockSize>>>(tester);
+  CUDA_CHECK(cudaDeviceSynchronize());
+  customKernel<<<gridSize, blockSize>>>(tester);
+  CUDA_CHECK(cudaDeviceSynchronize());
 
   displayResults(*tester, selectedOp, torcheagerFile ? torcheagerOut.data() : nullptr,
                  torchinductorFile ? torchinductorOut.data() : nullptr);
 
-  HIP_CHECK(hipFree(tester));
+  CUDA_CHECK(cudaFree(tester));
   return 0;
 }
 

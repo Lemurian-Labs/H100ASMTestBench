@@ -3,6 +3,7 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -diag-suppress=550")
 
 add_cuda_executable(cossin_test)
 add_cuda_executable(binary_test)
+add_cuda_executable(ternary_test)
 add_cuda_executable(div_test)
 add_cuda_executable(exp2f_test)
 add_cuda_executable(expf_test)
