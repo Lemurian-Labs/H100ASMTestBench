@@ -304,10 +304,23 @@ inline float __device__ custom_nearbyintf(float x) {
   return result;
 }
 
-// Placeholder: NautilusOp round (round-half-away-from-zero)
-// CUDA roundf() implements this correctly.
+// NautilusOp: round (round-half-away-from-zero)
+// PTX sequence used by compiler output for roundf: add signed 0.5 then trunc.
 inline float __device__ custom_roundf(float x) {
-  return roundf(x);
+  float result;
+  float tmp;
+  __asm__ __volatile__(
+      "// tmp = copysign(0.5, x)\n\t"
+      "copysign.f32 %1, %2, 0f3F000000;\n\t"
+      "// tmp = x + copysign(0.5, x)\n\t"
+      "add.rz.f32 %1, %2, %1;\n\t"
+      "// result = trunc(tmp)\n\t"
+      "cvt.rzi.f32.f32 %0, %1;"
+      : "=f"(result), // %0
+        "=&f"(tmp)    // %1
+      : "f"(x)        // %2
+      );
+  return result;
 }
 
 // NautilusOp: exp2
@@ -324,10 +337,65 @@ inline float __device__ custom_exp2f(float x) {
   return result;
 }
 
-// Placeholder: NautilusOp exp10
-// CUDA provides exp10f() natively.
+// NautilusOp: exp10
+// Full PTX implementation: 10^x = 2^(x * log2(10)), decomposed as 2^n * 2^frac.
+//
+// Algorithm (mirrors custom_expf but with log2(10) constants):
+//   1. Map x into [0,1] via fma + cvt.sat (handles over/underflow branchlessly).
+//   2. Magic-number round to extract integer exponent n.
+//   3. Cody-Waite two-constant range reduction to isolate frac part.
+//   4. Construct 2^(n-126) by bit-shifting n into the IEEE exponent field.
+//   5. ex2.approx.ftz.f32 for 2^frac, then multiply.
+//
+// Constants:
+//   0f3C57FA62 = log2(10) / 252   (maps x into [0,1] for saturation)
+//   0f3F000000 = 0.5f             (saturation center)
+//   0f437C0000 = 252.0f           (scale back to float exponent range)
+//   0f4B400001 = 12582913.0f      (magic round-to-integer bias)
+//   0fCB40007F = -12583039.0f     (= -(12582913 + 126) for Cody-Waite)
+//   0f40549A78 = log2(10)_hi      (≈ 3.3219280242919922f)
+//   0f33979A37 = log2(10)_lo      (≈ 4.605038981195214e-08f)
 inline float __device__ custom_exp10f(float x) {
-  return exp10f(x);
+  float result, tmp_f;
+  int tmp_i;
+
+  __asm__ __volatile__(
+      // Step 1: map x into [0,1] range with overflow/underflow clamp
+      "fma.rn.f32 %0, %3, 0f3C57FA62, 0f3F000000;\n\t"
+      // %0 = x * (log2(10)/252) + 0.5
+      "cvt.sat.f32.f32 %0, %0;\n\t"
+      // %0 = clamp(%0, 0.0, 1.0)
+      // Step 2: magic-number rounding — extract integer exponent n
+      "fma.rm.f32 %0, %0, 0f437C0000, 0f4B400001;\n\t"
+      // %0 = floor(%0 * 252.0 + 12582913.0); low mantissa bits = n+1
+      // Step 3: Cody-Waite range reduction for fractional part
+      "add.f32 %1, %0, 0fCB40007F;\n\t"
+      // %1 = %0 - 12583039.0 = (n - 126)
+      "neg.f32 %1, %1;\n\t"
+      // %1 = 126 - n
+      "fma.rn.f32 %1, %3, 0f40549A78, %1;\n\t"
+      // %1 = x * log2(10)_hi + (126 - n)
+      "fma.rn.f32 %1, %3, 0f33979A37, %1;\n\t"
+      // %1 += x * log2(10)_lo  →  frac part of x*log2(10)
+      // Step 4: construct 2^(n-126) via IEEE bit manipulation
+      "mov.b32 %2, %0;\n\t"
+      // %2 = reinterpret magic-rounded float as int32
+      "shl.b32 %2, %2, 23;\n\t"
+      // %2 <<= 23 — shift n into IEEE 754 exponent field
+      "mov.b32 %0, %2;\n\t"
+      // %0 = reinterpret as float = 2^(n-126)
+      // Step 5: hardware exp2 of fractional part, then combine
+      "ex2.approx.ftz.f32 %1, %1;\n\t"
+      // %1 = 2^frac  (denorms flushed to zero)
+      "mul.f32 %0, %1, %0;\n\t"
+      // %0 = 2^frac * 2^(n-126) = 10^x
+      : "=&f"(result),  // %0 — early clobber
+        "=&f"(tmp_f),   // %1 — early clobber
+        "=r"(tmp_i)     // %2
+      : "f"(x)          // %3
+      );
+
+  return result;
 }
 
 // NautilusOp: exp  (e^x)
