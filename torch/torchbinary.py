@@ -11,13 +11,25 @@ import numpy as np
 
 # Supported operations
 OPS = {
-    'pow': torch.pow,
+    'atan2': torch.atan2,
+    'cldiv': lambda a, b: torch.ceil(a / b),
+    'copysign': torch.copysign,
     'div': torch.div,
+    'dim': lambda a, b: torch.clamp(a - b, min=0),
+    'fldiv': lambda a, b: torch.floor(a / b),
+    'fmax': torch.fmax,
+    'fmin': torch.fmin,
+    'fmod': torch.fmod,
+    'hypot': torch.hypot,
+    'nextafter': torch.nextafter,
+    'pow': torch.pow,
+    'remainder': torch.remainder,
+    'root': lambda a, b: torch.pow(a, 1.0 / b),
 }
 
 parser = argparse.ArgumentParser(description='Run a binary torch operation and save results.')
 parser.add_argument('--op', choices=OPS.keys(), required=True,
-                    help='Binary operation to compute (pow, div)')
+                    help='Binary operation to compute')
 parser.add_argument('--file', type=str, default=None,
                     help='Input binary float file containing interleaved (a,b) pairs')
 parser.add_argument('--size', type=int, default=201,
