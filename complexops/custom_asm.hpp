@@ -45,14 +45,42 @@ __device__ inline float custom_remainderf(float a, float b) {
 //----------------------------------------------------------------------------
 // Nautilus compound/select stubs.
 
-// Placeholder: NautilusOp fldiv  y = a // b
+// NautilusOp: fldiv  y = floor(a / b)
 inline float __device__ custom_fldivf(float a, float b) {
-  return floorf(a / b);
+  float result;
+  float tmp;
+  __asm__ __volatile__(
+      "// %1 = %2 / %3\n\t"
+      "div.rn.f32 %1, %2, %3;\n\t"
+      "// %0 = floor(%1)\n\t"
+      "cvt.rmi.f32.f32 %0, %1;"
+      : "=f"(result), // %0
+        "=&f"(tmp)    // %1
+      : "f"(a),       // %2
+        "f"(b)        // %3
+      );
+  return result;
 }
 
-// Placeholder: NautilusOp cldiv  y = -(-a // b)
+// NautilusOp: cldiv  y = -floor((-a) / b)
 inline float __device__ custom_cldivf(float a, float b) {
-  return -floorf((-a) / b);
+  float result;
+  float tmp;
+  __asm__ __volatile__(
+      "// %1 = -%2\n\t"
+      "neg.f32 %1, %2;\n\t"
+      "// %1 = %1 / %3\n\t"
+      "div.rn.f32 %1, %1, %3;\n\t"
+      "// %0 = floor(%1)\n\t"
+      "cvt.rmi.f32.f32 %0, %1;\n\t"
+      "// %0 = -%0\n\t"
+      "neg.f32 %0, %0;"
+      : "=f"(result), // %0
+        "=&f"(tmp)    // %1
+      : "f"(a),       // %2
+        "f"(b)        // %3
+      );
+  return result;
 }
 
 //----------------------------------------------------------------------------
@@ -530,29 +558,65 @@ inline __device__ float custom_powf(float a, float b) {
 //----------------------------------------------------------------------------
 // Binary ops:
 
-// Placeholder: NautilusOp copysign
+// NautilusOp: copysign
 __device__ inline float custom_copysignf(float a, float b) {
-  return copysignf(a, b);
+  float result;
+  __asm__ __volatile__(
+      "// %0 = copysign(%1, %2)\n\t"
+      "copysign.f32 %0, %2, %1;"
+      : "=f"(result) // %0
+      : "f"(a),      // %1
+        "f"(b)       // %2
+      );
+  return result;
 }
 
-// Placeholder: NautilusOp max2
+// NautilusOp: max2
 // Note: CUDA fmaxf follows IEEE (returns the non-NaN operand when one input
 // is NaN).  The ROCm v_max_f32 version first canonicalized NaN inputs, then
 // took the maximum — semantics differ for NaN inputs.
 __device__ inline float custom_fmaxf(float a, float b) {
-  return fmaxf(a, b);
+  float result;
+  __asm__ __volatile__(
+      "// %0 = max(%1, %2)\n\t"
+      "max.f32 %0, %1, %2;"
+      : "=f"(result) // %0
+      : "f"(a),      // %1
+        "f"(b)       // %2
+      );
+  return result;
 }
 
 // NautilusOp dim  y = max(a - b, 0)
-// Implemented directly without library call.
+// PTX sequence from CUDA: sub + max with +0.0.
 inline float __device__ custom_dimf(float a, float b) {
-  return fmaxf(a - b, 0.0f);
+  float result;
+  float tmp;
+  __asm__ __volatile__(
+      "// %1 = %2 - %3\n\t"
+      "sub.f32 %1, %2, %3;\n\t"
+      "// %0 = max(%1, 0.0)\n\t"
+      "max.f32 %0, %1, 0f00000000;"
+      : "=f"(result), // %0
+        "=&f"(tmp)    // %1
+      : "f"(a),       // %2
+        "f"(b)        // %3
+      );
+  return result;
 }
 
-// Placeholder: NautilusOp min2
+// NautilusOp: min2
 // Same NaN-semantics caveat as custom_fmaxf above.
 __device__ inline float custom_fminf(float a, float b) {
-  return fminf(a, b);
+  float result;
+  __asm__ __volatile__(
+      "// %0 = min(%1, %2)\n\t"
+      "min.f32 %0, %1, %2;"
+      : "=f"(result) // %0
+      : "f"(a),      // %1
+        "f"(b)       // %2
+      );
+  return result;
 }
 
 // Placeholder: NautilusOp hypot
