@@ -639,17 +639,50 @@ inline float __device__ custom_rootf(float a, float b) {
 
 // NautilusOp: sel  y = s ? a : b
 inline float __device__ custom_sel(uint32_t s, float a, float b) {
-  return s ? a : b;
+  float result;
+  __asm__ __volatile__(
+      ".reg .pred %%p;\n\t"
+      "// %0 = (%1 != 0) ? %2 : %3\n\t"
+      "setp.ne.u32 %%p, %1, 0;\n\t"
+      "selp.f32 %0, %2, %3, %%p;"
+      : "=f"(result) // %0
+      : "r"(s),      // %1
+        "f"(a),      // %2
+        "f"(b)       // %3
+      );
+  return result;
 }
 
 // NautilusOp: mac  y = a*b + c
 inline float __device__ custom_macf(float a, float b, float c) {
-  return fmaf(a, b, c);
+  float result;
+  __asm__ __volatile__(
+      "// %0 = %1 * %2 + %3\n\t"
+      "fma.rn.f32 %0, %1, %2, %3;"
+      : "=f"(result) // %0
+      : "f"(a),      // %1
+        "f"(b),      // %2
+        "f"(c)       // %3
+      );
+  return result;
 }
 
 // NautilusOp: clip  y = max(min(a, u), d)
 inline float __device__ custom_clipf(float a, float u, float d) {
-  return fmaxf(fminf(a, u), d);
+  float result;
+  float tmp;
+  __asm__ __volatile__(
+      "// %1 = min(%2, %3)\n\t"
+      "min.f32 %1, %2, %3;\n\t"
+      "// %0 = max(%1, %4)\n\t"
+      "max.f32 %0, %1, %4;"
+      : "=f"(result), // %0
+        "=&f"(tmp)    // %1
+      : "f"(a),       // %2
+        "f"(u),       // %3
+        "f"(d)        // %4
+      );
+  return result;
 }
 
 // clang-format on
